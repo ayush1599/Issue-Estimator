@@ -525,32 +525,32 @@ function createTabContent(repoResult, index) {
         // Create summary cards
         const summaryHTML = `
             <div class="summary-cards">
-                <div class="summary-card">
+                <div class="summary-card shadow-2l-sm with-top-highlight">
                     <div class="summary-value">${repoResult.issue_count}</div>
                     <div class="summary-label">Total Issues</div>
                 </div>
-                <div class="summary-card">
+                <div class="summary-card shadow-2l-sm with-top-highlight">
                     <div class="summary-value">${repoResult.total_hours}h</div>
                     <div class="summary-label">Total Hours</div>
                 </div>
-                <div class="summary-card">
+                <div class="summary-card shadow-2l-sm with-top-highlight">
                     <div class="summary-value">${formatCurrency(repoResult.total_cost)}</div>
                     <div class="summary-label">Total Cost</div>
                 </div>
-                <div class="summary-card">
+                <div class="summary-card shadow-2l-sm with-top-highlight">
                     <div class="summary-value">${formatCurrency(repoResult.total_cost / repoResult.issue_count)}</div>
                     <div class="summary-label">Avg Cost/Issue</div>
                 </div>
             </div>
             <div class="table-actions">
-                <button class="btn-secondary btn-default" onclick="downloadSingleRepoCsv(${index})">
+                <button class="btn-secondary btn-default shadow-2l-md with-top-highlight" onclick="downloadSingleRepoCsv(${index})">
                     📥 Download CSV for this Repository
                 </button>
             </div>
         `;
 
         const tableHTML = `
-            <div class="table-container shade-1">
+            <div class="table-container shade-1 shadow-2l-sm">
                 <table class="results-table">
                     <thead>
                         <tr>
