@@ -543,14 +543,14 @@ function createTabContent(repoResult, index) {
                 </div>
             </div>
             <div class="table-actions">
-                <button class="btn-secondary" onclick="downloadSingleRepoCsv(${index})">
+                <button class="btn-secondary btn-default" onclick="downloadSingleRepoCsv(${index})">
                     📥 Download CSV for this Repository
                 </button>
             </div>
         `;
 
         const tableHTML = `
-            <div class="table-container">
+            <div class="table-container shade-1">
                 <table class="results-table">
                     <thead>
                         <tr>
