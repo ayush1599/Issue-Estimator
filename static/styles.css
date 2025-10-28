@@ -151,9 +151,13 @@ body {
 
 /* Container */
 .container {
-    max-width: 1100px;
+    max-width: 1280px;
     margin: 0 auto;
-    padding: 1.5rem;
+    padding: 2rem;
+    min-height: calc(100vh - 140px); /* fill screen and reduce empty space below */
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* center main content vertically */
 }
 
 /* Header */
@@ -195,7 +199,8 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    margin-bottom: 2rem;
+    margin: 0 auto 2rem;
+    max-width: 1280px;
     background: var(--layer-1);
     padding: 0.5rem 0.75rem;
     border-radius: 16px;
