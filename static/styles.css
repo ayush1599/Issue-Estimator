@@ -290,7 +290,7 @@ body {
     padding: 0.75rem 1rem;
     font-size: 1rem;
     background: var(--layer-2);  /* Layer 2 - Interactive */
-    border: none;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     transition: all 0.2s;
     color: var(--text-primary);
@@ -303,7 +303,8 @@ body {
 .input-group input:focus {
     outline: none;
     background: var(--layer-3);  /* Layer 3 - Focus */
-    box-shadow: 0 0 0 3px rgba(10, 10, 10, 0.1);
+    border-color: var(--border-focus);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 0 0 3px rgba(26, 26, 26, 0.10);
 }
 
 /* Buttons */
