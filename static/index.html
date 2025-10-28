@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Issue Cost Estimator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔍 GitHub Issue Cost Estimator</h1>
+            <p class="subtitle">AI-powered cost estimation for your GitHub issues</p>
+        </header>
+
+        <main>
+            <!-- Input Section -->
+            <section class="input-section">
+                <div class="input-group">
+                    <label for="repo-url">GitHub Repository URL</label>
+                    <input
+                        type="text"
+                        id="repo-url"
+                        placeholder="https://github.com/owner/repository"
+                        value=""
+                    >
+                </div>
+                <div class="input-group">
+                    <label for="hourly-rate">Engineer Cost per Hour (USD)</label>
+                    <input
+                        type="number"
+                        id="hourly-rate"
+                        placeholder="80"
+                        value="80"
+                        min="1"
+                        step="1"
+                    >
+                    <small class="input-help">Default: $80/hour. Adjust based on your team's rate.</small>
+                </div>
+                <button id="analyze-btn" class="btn-primary">
+                    <span class="btn-text">Fetch & Analyze Issues</span>
+                    <span class="btn-loading" style="display: none;">
+                        <span class="spinner"></span> Analyzing...
+                    </span>
+                </button>
+            </section>
+
+            <!-- Loading Indicator -->
+            <div id="loading-indicator" class="loading-indicator" style="display: none;">
+                <div class="progress-circle">
+                    <svg class="progress-ring" width="120" height="120">
+                        <circle class="progress-ring-circle-bg" stroke="#e2e8f0" stroke-width="8" fill="transparent" r="52" cx="60" cy="60"/>
+                        <circle id="progress-ring-circle" class="progress-ring-circle" stroke="#2563eb" stroke-width="8" fill="transparent" r="52" cx="60" cy="60"/>
+                    </svg>
+                    <div class="progress-text">
+                        <div id="progress-percentage" class="progress-percentage">0%</div>
+                    </div>
+                </div>
+                <p id="loading-message">Connecting to GitHub...</p>
+            </div>
+
+            <!-- Error Message -->
+            <div id="error-message" class="error-message" style="display: none;"></div>
+
+            <!-- Results Section -->
+            <section id="results-section" class="results-section" style="display: none;">
+                <div class="results-header">
+                    <div class="results-info">
+                        <h2 id="results-title">Analysis Results</h2>
+                        <p id="results-subtitle"></p>
+                    </div>
+                    <div class="results-actions">
+                        <button id="download-csv-btn" class="btn-secondary">
+                            📥 Download CSV
+                        </button>
+                    </div>
+                </div>
+
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <div class="summary-value" id="total-issues">0</div>
+                        <div class="summary-label">Total Issues</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-value" id="total-hours">0</div>
+                        <div class="summary-label">Total Hours</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-value" id="total-cost">$0</div>
+                        <div class="summary-label">Estimated Total Cost</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-value" id="avg-cost">$0</div>
+                        <div class="summary-label">Average Cost per Issue</div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table id="results-table">
+                        <thead>
+                            <tr>
+                                <th>Issue #</th>
+                                <th>Title</th>
+                                <th>Complexity</th>
+                                <th>Est. Hours</th>
+                                <th>Est. Cost</th>
+                                <th>Labels</th>
+                                <th>Link</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-tbody">
+                            <!-- Results will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <!-- Reasoning Popup Modal -->
+        <div id="reasoning-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modal-title">Issue Analysis Details</h3>
+                    <button class="modal-close" id="modal-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="detail-item">
+                        <strong>Issue:</strong>
+                        <p id="modal-issue-title"></p>
+                    </div>
+                    <div class="detail-item">
+                        <strong>Complexity:</strong>
+                        <span id="modal-complexity" class="complexity-badge"></span>
+                    </div>
+                    <div class="detail-item">
+                        <strong>Estimated Hours:</strong>
+                        <p id="modal-hours"></p>
+                    </div>
+                    <div class="detail-item">
+                        <strong>Estimated Cost:</strong>
+                        <p id="modal-cost"></p>
+                    </div>
+                    <div class="detail-item">
+                        <strong>Analysis Reasoning:</strong>
+                        <p id="modal-reasoning" class="reasoning-text"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Powered by AI | Built with Flask & Claude/OpenAI</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
