@@ -25,7 +25,7 @@ class LLMAnalyzer:
 
     def __init__(self):
         """Initialize the LLM client based on environment configuration"""
-        self.provider = os.getenv('LLM_PROVIDER', 'anthropic').lower()
+        self.provider = os.getenv('LLM_PROVIDER', 'openai').lower()
 
         if self.provider == 'anthropic':
             api_key = os.getenv('ANTHROPIC_API_KEY')
