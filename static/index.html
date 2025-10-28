@@ -3,28 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Issue Cost Estimator</title>
+    <title>Effortly - GitHub Issue Cost Estimator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🔍 GitHub Issue Cost Estimator</h1>
-            <p class="subtitle">AI-powered cost estimation for your GitHub issues</p>
+        <header class="app-header">
+            <div class="brand">Effortly</div>
         </header>
 
+        <!-- Navigation Tabs -->
+        <nav class="main-nav">
+            <button id="nav-analyze" class="nav-button active">📊 Analyze</button>
+            <button id="nav-history" class="nav-button">📜 History</button>
+        </nav>
+
         <main>
-            <!-- Input Section -->
-            <section class="input-section">
-                <div class="input-group">
-                    <label for="repo-url">GitHub Repository URL</label>
-                    <input
-                        type="text"
-                        id="repo-url"
-                        placeholder="https://github.com/owner/repository"
-                        value=""
-                    >
+            <!-- Analyze View -->
+            <div id="analyze-view" class="main-view">
+                <!-- Input Section -->
+                <section class="input-section">
+                <div id="repo-inputs-container">
+                    <div class="repo-input-wrapper" data-index="0">
+                        <div class="input-group">
+                            <label for="repo-url-0">GitHub Repository URL #1</label>
+                            <div class="input-with-remove">
+                                <input
+                                    type="text"
+                                    id="repo-url-0"
+                                    class="repo-url-input"
+                                    placeholder="https://github.com/owner/repository"
+                                    value=""
+                                >
+                            </div>
+                        </div>
+                    </div>
                 </div>
+                <button id="add-repo-btn" class="btn-secondary btn-small">
+                    + Add Another Repository (Max 5)
+                </button>
                 <div class="input-group">
                     <label for="hourly-rate">Engineer Cost per Hour (USD)</label>
                     <input
@@ -70,51 +90,62 @@
                         <p id="results-subtitle"></p>
                     </div>
                     <div class="results-actions">
-                        <button id="download-csv-btn" class="btn-secondary">
-                            📥 Download CSV
+                        <button id="download-all-csv-btn" class="btn-secondary">
+                            📥 Download All as CSV
                         </button>
                     </div>
                 </div>
 
-                <div class="summary-cards">
-                    <div class="summary-card">
-                        <div class="summary-value" id="total-issues">0</div>
-                        <div class="summary-label">Total Issues</div>
-                    </div>
-                    <div class="summary-card">
-                        <div class="summary-value" id="total-hours">0</div>
-                        <div class="summary-label">Total Hours</div>
-                    </div>
-                    <div class="summary-card">
-                        <div class="summary-value" id="total-cost">$0</div>
-                        <div class="summary-label">Estimated Total Cost</div>
-                    </div>
-                    <div class="summary-card">
-                        <div class="summary-value" id="avg-cost">$0</div>
-                        <div class="summary-label">Average Cost per Issue</div>
-                    </div>
+                <!-- Tabs Navigation -->
+                <div id="repo-tabs" class="tabs-container">
+                    <!-- Tabs will be dynamically added here -->
                 </div>
 
-                <div class="table-container">
-                    <table id="results-table">
-                        <thead>
-                            <tr>
-                                <th>Issue #</th>
-                                <th>Title</th>
-                                <th>Complexity</th>
-                                <th>Est. Hours</th>
-                                <th>Est. Cost</th>
-                                <th>Labels</th>
-                                <th>Link</th>
-                                <th>Details</th>
-                            </tr>
-                        </thead>
-                        <tbody id="results-tbody">
-                            <!-- Results will be inserted here -->
-                        </tbody>
-                    </table>
+                <!-- Tab Content -->
+                <div id="tab-content-container">
+                    <!-- Tab content will be dynamically added here -->
                 </div>
             </section>
+            </div>
+
+            <!-- History View -->
+            <div id="history-view" class="main-view" style="display: none;">
+                <section class="history-section">
+                    <div class="history-header">
+                        <div>
+                            <h2>Analysis History</h2>
+                            <p class="subtitle">View and download past repository analyses</p>
+                        </div>
+                        <button id="clear-history-btn" class="btn-secondary">
+                            🗑️ Clear History
+                        </button>
+                    </div>
+
+                    <div id="history-empty" class="history-empty">
+                        <p>📭 No analysis history yet</p>
+                        <p class="subtitle">Analyzed repositories will appear here</p>
+                    </div>
+
+                    <div id="history-content" class="history-content" style="display: none;">
+                        <table class="history-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Repositories</th>
+                                    <th>Total Issues</th>
+                                    <th>Total Hours</th>
+                                    <th>Total Cost</th>
+                                    <th>Hourly Rate</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-tbody">
+                                <!-- History items will be added here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
         </main>
 
         <!-- Reasoning Popup Modal -->

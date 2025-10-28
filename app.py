@@ -150,9 +150,197 @@ def index():
     return app.send_static_file('index.html')
 
 
+def process_single_repo(repo_url, hourly_rate, github_client, repo_index, total_repos, session_id):
+    """
+    Process a single repository and return results
+
+    Args:
+        repo_url: GitHub repository URL
+        hourly_rate: Engineer cost per hour
+        github_client: GitHubAPIClient instance
+        repo_index: Index of this repo (1-based)
+        total_repos: Total number of repos being analyzed
+        session_id: Session ID for progress tracking
+
+    Returns:
+        Dictionary with analysis results or error
+    """
+    try:
+        # Parse repository URL
+        owner, repo = github_client.parse_repo_url(repo_url)
+
+        # Fetch issues from GitHub
+        print(f"[Repo {repo_index}/{total_repos}] Fetching issues from {owner}/{repo}...")
+        raw_issues = github_client.fetch_issues(owner, repo)
+
+        if not raw_issues:
+            return {
+                'repo_url': repo_url,
+                'owner': owner,
+                'repo': repo,
+                'issues': [],
+                'total_cost': 0,
+                'total_hours': 0,
+                'issue_count': 0,
+                'status': 'success',
+                'message': 'No open issues found'
+            }
+
+        print(f"[Repo {repo_index}/{total_repos}] Found {len(raw_issues)} open issues")
+
+        # Extract and clean issue data
+        issues = [github_client.extract_issue_data(issue) for issue in raw_issues]
+
+        # Analyze each issue with LLM
+        analyzed_issues = []
+        total_cost = 0
+
+        for idx, issue in enumerate(issues, 1):
+            print(f"[Repo {repo_index}/{total_repos}] Analyzing issue {idx}/{len(issues)}: #{issue['issue_number']}")
+
+            # Update progress for this specific issue
+            base_progress = int((repo_index - 1) / total_repos * 100)
+            repo_progress = int((idx / len(issues)) * (100 / total_repos))
+            total_progress = min(base_progress + repo_progress, 99)
+
+            progress_tracking[session_id].update({
+                'progress': total_progress,
+                'message': f'Repo {repo_index}/{total_repos}: Analyzing issue {idx}/{len(issues)}: {issue["title"][:50]}...',
+                'current_repo': repo_index,
+                'current_issue': idx,
+                'total_issues_in_repo': len(issues)
+            })
+
+            try:
+                analysis = llm_analyzer.analyze_issue(
+                    title=issue['title'],
+                    body=issue['body'],
+                    labels=issue['labels']
+                )
+
+                # Calculate cost based on hours and hourly rate
+                estimated_hours = analysis['estimated_hours']
+                estimated_cost = estimated_hours * hourly_rate
+
+                analyzed_issue = {
+                    'issue_number': issue['issue_number'],
+                    'title': issue['title'],
+                    'complexity': analysis['complexity'],
+                    'estimated_hours': estimated_hours,
+                    'estimated_cost': round(estimated_cost, 2),
+                    'labels': ', '.join(issue['labels']),
+                    'url': issue['html_url'],
+                    'reasoning': analysis['reasoning']
+                }
+
+                analyzed_issues.append(analyzed_issue)
+                total_cost += estimated_cost
+
+            except Exception as e:
+                print(f"Error analyzing issue #{issue['issue_number']}: {str(e)}")
+                analyzed_issues.append({
+                    'issue_number': issue['issue_number'],
+                    'title': issue['title'],
+                    'complexity': 'Unknown',
+                    'estimated_hours': 0,
+                    'estimated_cost': 0,
+                    'labels': ', '.join(issue['labels']),
+                    'url': issue['html_url'],
+                    'reasoning': 'Analysis failed. Manual review required.'
+                })
+
+        # Cache results for CSV download
+        cache_key = f"{owner}_{repo}"
+        analysis_cache[cache_key] = analyzed_issues
+
+        # Calculate total hours
+        total_hours = sum(issue.get('estimated_hours', 0) for issue in analyzed_issues)
+
+        return {
+            'repo_url': repo_url,
+            'owner': owner,
+            'repo': repo,
+            'issues': analyzed_issues,
+            'total_cost': round(total_cost, 2),
+            'total_hours': round(total_hours, 1),
+            'issue_count': len(analyzed_issues),
+            'cache_key': cache_key,
+            'status': 'success'
+        }
+
+    except Exception as e:
+        print(f"[Repo {repo_index}/{total_repos}] Error: {str(e)}")
+        return {
+            'repo_url': repo_url,
+            'owner': '',
+            'repo': '',
+            'issues': [],
+            'total_cost': 0,
+            'total_hours': 0,
+            'issue_count': 0,
+            'status': 'error',
+            'error': str(e)
+        }
+
+
+def process_multiple_repos(session_id, repo_urls, hourly_rate):
+    """
+    Background function to process multiple repositories
+    """
+    try:
+        total_repos = len(repo_urls)
+        github_client = GitHubAPIClient()
+        repo_results = []
+
+        for repo_index, repo_url in enumerate(repo_urls, 1):
+            # Update progress for current repo
+            progress_percent = int((repo_index - 1) / total_repos * 100)
+            progress_tracking[session_id].update({
+                'progress': progress_percent,
+                'message': f'Analyzing repository {repo_index}/{total_repos}...',
+                'current_repo': repo_index,
+                'total_repos': total_repos
+            })
+
+            # Process this repository
+            result = process_single_repo(repo_url, hourly_rate, github_client, repo_index, total_repos, session_id)
+            repo_results.append(result)
+
+            # Update progress tracking with intermediate results
+            progress_tracking[session_id]['repo_results'] = repo_results
+
+        # Calculate overall totals
+        total_cost = sum(r.get('total_cost', 0) for r in repo_results)
+        total_hours = sum(r.get('total_hours', 0) for r in repo_results)
+        total_issues = sum(r.get('issue_count', 0) for r in repo_results)
+
+        # Mark as complete with all results
+        progress_tracking[session_id].update({
+            'status': 'complete',
+            'progress': 100,
+            'message': 'Analysis complete!',
+            'result': {
+                'repo_results': repo_results,
+                'total_cost': round(total_cost, 2),
+                'total_hours': round(total_hours, 1),
+                'total_issues': total_issues,
+                'hourly_rate': hourly_rate,
+                'session_id': session_id
+            }
+        })
+
+    except Exception as e:
+        print(f"Error in background analysis: {str(e)}")
+        progress_tracking[session_id].update({
+            'status': 'error',
+            'progress': 0,
+            'message': f'Error: {str(e)}'
+        })
+
+
 def process_analysis(session_id, repo_url, hourly_rate):
     """
-    Background function to process analysis
+    Background function to process analysis (legacy single-repo support)
     """
     try:
         progress_tracking[session_id].update({
@@ -313,7 +501,8 @@ def analyze_issues():
 
     Expected JSON body:
         {
-            "repo_url": "https://github.com/owner/repo"
+            "repo_urls": ["https://github.com/owner/repo1", "https://github.com/owner/repo2"],
+            "hourly_rate": 80
         }
 
     Returns:
@@ -321,11 +510,21 @@ def analyze_issues():
     """
     try:
         data = request.get_json()
-        repo_url = data.get('repo_url', '').strip()
+        repo_urls = data.get('repo_urls', [])
         hourly_rate = float(data.get('hourly_rate', 80))  # Default $80/hour
 
-        if not repo_url:
-            return jsonify({'error': 'Repository URL is required'}), 400
+        # Support both single and multiple repos for backward compatibility
+        if not repo_urls and data.get('repo_url'):
+            repo_urls = [data.get('repo_url')]
+
+        # Filter out empty URLs
+        repo_urls = [url.strip() for url in repo_urls if url and url.strip()]
+
+        if not repo_urls:
+            return jsonify({'error': 'At least one repository URL is required'}), 400
+
+        if len(repo_urls) > 5:
+            return jsonify({'error': 'Maximum 5 repositories allowed'}), 400
 
         if hourly_rate <= 0:
             return jsonify({'error': 'Hourly rate must be positive'}), 400
@@ -340,13 +539,15 @@ def analyze_issues():
             'message': 'Connecting to GitHub...',
             'total': 0,
             'current': 0,
-            'result': None
+            'result': None,
+            'repo_count': len(repo_urls),
+            'repo_results': []
         }
 
-        # Start background processing
+        # Start background processing for multiple repos
         thread = threading.Thread(
-            target=process_analysis,
-            args=(session_id, repo_url, hourly_rate)
+            target=process_multiple_repos,
+            args=(session_id, repo_urls, hourly_rate)
         )
         thread.daemon = True
         thread.start()
@@ -354,7 +555,8 @@ def analyze_issues():
         # Return immediately with session_id
         return jsonify({
             'session_id': session_id,
-            'message': 'Analysis started'
+            'message': 'Analysis started',
+            'repo_count': len(repo_urls)
         }), 202
 
     except Exception as e:
