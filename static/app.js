@@ -177,8 +177,8 @@ function createHistoryRow(item) {
         <td>${formatCurrency(data.total_cost)}</td>
         <td>$${data.hourly_rate}/hr</td>
         <td class="history-actions">
-            <button class="btn-icon" onclick="downloadHistoryItem(${item.id})">📥 CSV</button>
-            <button class="btn-icon btn-danger" onclick="deleteHistoryItem(${item.id})">🗑️</button>
+            <button class="btn-icon" onclick="downloadHistoryItem(${item.id})">Download CSV</button>
+            <button class="btn-icon btn-danger" onclick="deleteHistoryItem(${item.id})">Delete</button>
         </td>
     `;
 
@@ -482,10 +482,10 @@ function createTab(repoResult, index) {
         : `Repo ${index + 1}`;
 
     const issueCount = repoResult.issue_count || 0;
-    const statusIcon = repoResult.status === 'success' ? '✓' : '✗';
+    const statusIcon = '';
 
     tab.innerHTML = `
-        <div class="tab-title">${statusIcon} ${repoName}</div>
+        <div class="tab-title">${repoName}</div>
         <div class="tab-subtitle">${issueCount} issues</div>
     `;
 
@@ -544,7 +544,7 @@ function createTabContent(repoResult, index) {
             </div>
             <div class="table-actions">
                 <button class="btn-secondary btn-default shadow-2l-md with-top-highlight" onclick="downloadSingleRepoCsv(${index})">
-                    📥 Download CSV for this Repository
+                    Download CSV for this Repository
                 </button>
             </div>
         `;
