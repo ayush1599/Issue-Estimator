@@ -89,7 +89,7 @@
 
     /* Application Semantic Mapping (60-30-10 rule) with Color Layering */
     /* 60% - Backgrounds and large surfaces - 4 layer hierarchy */
-    --layer-0: #e8f4ff;  /* Shade 1 - Darkest (page background) - alice-200 */
+    --layer-0: #e6eaec;  /* Shade 1 - Darkest (page background) - slightly darker cool gray for better contrast */
     --layer-1: #f4faff;  /* Shade 2 - Medium (cards/containers) - alice-100 */
     --layer-2: #fafcff;  /* Shade 3 - Light (interactive elements) - alice-50 */
     --layer-3: #ffffff;  /* Shade 4 - Lightest (active/hover states) */
