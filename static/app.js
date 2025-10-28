@@ -156,12 +156,14 @@ function loadHistory() {
  * Create history table row
  */
 function createHistoryRow(item) {
-    const row = document.createElement('tr');
+    const row = document.createElement('div');
+    row.className = 'table-row';
     const data = item.data;
 
     // Format date
     const date = new Date(item.timestamp);
-    const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    const dateStr = date.toLocaleDateString();
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     // Get repository names
     const repoNames = data.repo_results
@@ -170,16 +172,42 @@ function createHistoryRow(item) {
         .join(', ');
 
     row.innerHTML = `
-        <td>${dateStr}</td>
-        <td class="history-repos">${repoNames || 'N/A'}</td>
-        <td>${data.total_issues}</td>
-        <td>${data.total_hours}h</td>
-        <td>${formatCurrency(data.total_cost)}</td>
-        <td>$${data.hourly_rate}/hr</td>
-        <td class="history-actions">
-            <button class="btn-icon" onclick="downloadHistoryItem(${item.id})">Download CSV</button>
-            <button class="btn-icon btn-danger" onclick="deleteHistoryItem(${item.id})">Delete</button>
-        </td>
+        <div class="table-cell">
+            <div>${dateStr}</div>
+            <div class="table-cell muted">${timeStr}</div>
+        </div>
+        <div class="table-cell">
+            <div class="history-repos">${repoNames || 'N/A'}</div>
+        </div>
+        <div class="table-cell">
+            <div class="font-medium">${data.total_issues}</div>
+        </div>
+        <div class="table-cell">
+            <div class="font-medium">${data.total_hours}h</div>
+        </div>
+        <div class="table-cell">
+            <div class="font-medium">${formatCurrency(data.total_cost)}</div>
+        </div>
+        <div class="table-cell">
+            <div class="table-cell muted">$${data.hourly_rate}/hr</div>
+        </div>
+        <div class="table-cell">
+            <div class="history-actions">
+                <button class="btn-icon" onclick="downloadHistoryItem(${item.id})" title="Download CSV">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M21 15V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <polyline points="7,10 12,15 17,10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <button class="btn-icon btn-danger" onclick="deleteHistoryItem(${item.id})" title="Delete">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <polyline points="3,6 5,6 21,6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M19 6V20A2 2 0 0 1 17 22H7A2 2 0 0 1 5 20V6M8 6V4A2 2 0 0 1 10 2H14A2 2 0 0 1 16 4V6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
     `;
 
     return row;
@@ -504,81 +532,153 @@ function createTabContent(repoResult, index) {
 
     if (repoResult.status === 'error') {
         tabContent.innerHTML = `
-            <div class="error-box">
-                <h3>Error Analyzing Repository</h3>
-                <p>${repoResult.error || 'Unknown error occurred'}</p>
-                <p class="error-repo-url">Repository: ${repoResult.repo_url}</p>
+            <div class="card">
+                <div class="card-content">
+                    <div class="error-state">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                            <line x1="15" y1="9" x2="9" y2="15" stroke="currentColor" stroke-width="2"/>
+                            <line x1="9" y1="9" x2="15" y2="15" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                        <h3>Error Analyzing Repository</h3>
+                        <p>${repoResult.error || 'Unknown error occurred'}</p>
+                        <p class="error-repo-url">Repository: ${repoResult.repo_url}</p>
+                    </div>
+                </div>
             </div>
         `;
     } else if (repoResult.issue_count === 0) {
         tabContent.innerHTML = `
-            <div class="info-box">
-                <h3>No Open Issues</h3>
-                <p>This repository has no open issues to analyze.</p>
-                <p class="info-repo-url">Repository: ${repoResult.owner}/${repoResult.repo}</p>
+            <div class="card">
+                <div class="card-content">
+                    <div class="empty-state">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M9 12L11 14L15 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                        <h3>No Open Issues</h3>
+                        <p>This repository has no open issues to analyze.</p>
+                        <p class="info-repo-url">Repository: ${repoResult.owner}/${repoResult.repo}</p>
+                    </div>
+                </div>
             </div>
         `;
     } else {
         // Store issues in global array for modal access
         allRepoIssues[index] = repoResult.issues;
 
-        // Create summary cards
-        const summaryHTML = `
-            <div class="summary-cards">
-                <div class="summary-card shadow-2l-sm with-top-highlight">
-                    <div class="summary-value">${repoResult.issue_count}</div>
-                    <div class="summary-label">Total Issues</div>
+        // Create combined card with summary and issue details
+        const combinedHTML = `
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Repository Analysis</div>
+                    <div class="card-description">${repoResult.owner}/${repoResult.repo} - Complete analysis with ${repoResult.issue_count} issues</div>
                 </div>
-                <div class="summary-card shadow-2l-sm with-top-highlight">
-                    <div class="summary-value">${repoResult.total_hours}h</div>
-                    <div class="summary-label">Total Hours</div>
+                <div class="card-content">
+                    <!-- Summary Section -->
+                    <div class="summary-section">
+                        <h3 class="section-title">Summary</h3>
+                        <div class="summary-cards">
+                            <div class="summary-card">
+                                <div class="summary-value">${repoResult.issue_count}</div>
+                                <div class="summary-label">Total Issues</div>
+                            </div>
+                            <div class="summary-card">
+                                <div class="summary-value">${repoResult.total_hours}h</div>
+                                <div class="summary-label">Total Hours</div>
+                            </div>
+                            <div class="summary-card">
+                                <div class="summary-value">${formatCurrency(repoResult.total_cost)}</div>
+                                <div class="summary-label">Total Cost</div>
+                            </div>
+                            <div class="summary-card">
+                                <div class="summary-value">${formatCurrency(repoResult.total_cost / repoResult.issue_count)}</div>
+                                <div class="summary-label">Avg Cost/Issue</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Issue Details Section -->
+                    <div class="details-section">
+                        <h3 class="section-title">Issue Details</h3>
+                        <div class="shadcn-table">
+                            <div class="table-header">
+                                <div class="table-row table-header-row">
+                                    <div class="table-head">Issue #</div>
+                                    <div class="table-head">Title</div>
+                                    <div class="table-head">Complexity</div>
+                                    <div class="table-head">Est. Hours</div>
+                                    <div class="table-head">Est. Cost</div>
+                                    <div class="table-head">Labels</div>
+                                    <div class="table-head">Link</div>
+                                    <div class="table-head">Details</div>
+                                </div>
+                            </div>
+                            <div class="table-body">
+                                ${repoResult.issues.map((issue, issueIndex) => createIssueTableRowHTML(issue, index, issueIndex)).join('')}
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="summary-card shadow-2l-sm with-top-highlight">
-                    <div class="summary-value">${formatCurrency(repoResult.total_cost)}</div>
-                    <div class="summary-label">Total Cost</div>
+                <div class="card-footer">
+                    <button class="btn btn-secondary btn-md" onclick="downloadSingleRepoCsv(${index})">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M21 15V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <polyline points="7,10 12,15 17,10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Download CSV for this Repository
+                    </button>
                 </div>
-                <div class="summary-card shadow-2l-sm with-top-highlight">
-                    <div class="summary-value">${formatCurrency(repoResult.total_cost / repoResult.issue_count)}</div>
-                    <div class="summary-label">Avg Cost/Issue</div>
-                </div>
-            </div>
-            <div class="table-actions">
-                <button class="btn-secondary btn-default shadow-2l-md with-top-highlight" onclick="downloadSingleRepoCsv(${index})">
-                    Download CSV for this Repository
-                </button>
             </div>
         `;
 
-        const tableHTML = `
-            <div class="table-container shade-1 shadow-2l-sm">
-                <table class="results-table">
-                    <thead>
-                        <tr>
-                            <th>Issue #</th>
-                            <th>Title</th>
-                            <th>Complexity</th>
-                            <th>Est. Hours</th>
-                            <th>Est. Cost</th>
-                            <th>Labels</th>
-                            <th>Link</th>
-                            <th>Details</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${repoResult.issues.map((issue, issueIndex) => createTableRowHTML(issue, index, issueIndex)).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
-
-        tabContent.innerHTML = summaryHTML + tableHTML;
+        tabContent.innerHTML = combinedHTML;
     }
 
     tabContentContainer.appendChild(tabContent);
 }
 
 /**
- * Create HTML for a table row
+ * Create HTML for a shadcn-style issue table row
+ */
+function createIssueTableRowHTML(issue, repoIndex, issueIndex) {
+    // Escape HTML in title for attribute
+    const escapedTitle = issue.title.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const escapedLabels = (issue.labels || 'None').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+    return `
+        <div class="table-row">
+            <div class="table-cell">
+                <div class="font-medium">#${issue.issue_number}</div>
+            </div>
+            <div class="table-cell">
+                <div class="issue-title" title="${escapedTitle}">${issue.title}</div>
+            </div>
+            <div class="table-cell">
+                <span class="complexity-badge complexity-${issue.complexity.toLowerCase()}">${issue.complexity}</span>
+            </div>
+            <div class="table-cell">
+                <div class="font-medium">${issue.estimated_hours}h</div>
+            </div>
+            <div class="table-cell">
+                <div class="cost-value font-medium">${formatCurrency(issue.estimated_cost)}</div>
+            </div>
+            <div class="table-cell">
+                <div class="labels-cell" title="${escapedLabels}">${issue.labels || 'None'}</div>
+            </div>
+            <div class="table-cell">
+                <a href="${issue.url}" target="_blank" rel="noopener noreferrer" class="issue-link">View</a>
+            </div>
+            <div class="table-cell">
+                <button class="btn-details" onclick="showReasoningModal(${repoIndex}, ${issueIndex})">Details</button>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Create HTML for a legacy table row (kept for compatibility)
  */
 function createTableRowHTML(issue, repoIndex, issueIndex) {
     // Escape HTML in title for attribute
