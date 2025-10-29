@@ -181,7 +181,7 @@ Keep reasoning to 3 brief points."""
 
     def _analyze_with_anthropic(self, prompt: str) -> str:
         """
-        Get analysis from Claude
+        Get analysis from Claude with retry logic
 
         Args:
             prompt: Analysis prompt
@@ -189,19 +189,33 @@ Keep reasoning to 3 brief points."""
         Returns:
             Response text
         """
-        message = self.client.messages.create(
-            model=self.model,
-            max_tokens=300,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
+        max_retries = 3
+        last_error = None
 
-        return message.content[0].text
+        for attempt in range(max_retries):
+            try:
+                message = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=300,
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ],
+                    timeout=30.0  # 30 second timeout
+                )
+                return message.content[0].text
+            except Exception as e:
+                last_error = e
+                print(f"Anthropic API attempt {attempt + 1} failed: {str(e)}")
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(1)  # Wait 1 second before retry
+
+        # If all retries failed, raise the last error
+        raise last_error
 
     def _analyze_with_openai(self, prompt: str) -> str:
         """
-        Get analysis from OpenAI
+        Get analysis from OpenAI with retry logic
 
         Args:
             prompt: Analysis prompt
@@ -209,23 +223,37 @@ Keep reasoning to 3 brief points."""
         Returns:
             Response text
         """
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Estimate task complexity and hours."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            max_tokens=300,
-            temperature=0.2
-        )
+        max_retries = 3
+        last_error = None
 
-        return response.choices[0].message.content
+        for attempt in range(max_retries):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Estimate task complexity and hours."
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt
+                        }
+                    ],
+                    max_tokens=300,
+                    temperature=0.2,
+                    timeout=30.0  # 30 second timeout
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                last_error = e
+                print(f"OpenAI API attempt {attempt + 1} failed: {str(e)}")
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(1)  # Wait 1 second before retry
+
+        # If all retries failed, raise the last error
+        raise last_error
 
 
 def test_analyzer():
