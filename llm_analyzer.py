@@ -5,6 +5,7 @@ Handles AI-powered analysis of GitHub issues using Claude or OpenAI
 
 import os
 import json
+import hashlib
 from typing import Dict, List
 from anthropic import Anthropic
 from openai import OpenAI
@@ -26,6 +27,7 @@ class LLMAnalyzer:
     def __init__(self):
         """Initialize the LLM client based on environment configuration"""
         self.provider = os.getenv('LLM_PROVIDER', 'openai').lower()
+        self.cache = {}  # In-memory cache for API responses
 
         if self.provider == 'anthropic':
             api_key = os.getenv('ANTHROPIC_API_KEY')
@@ -59,42 +61,20 @@ class LLMAnalyzer:
         """
         labels_str = ', '.join(labels) if labels else 'None'
 
-        prompt = f"""Analyze this GitHub issue and estimate its complexity and hours needed.
+        prompt = f"""Analyze GitHub issue: "{title}"
+Description: {body[:1000] if body else 'None'}
+Labels: {labels_str}
 
-**Issue Title:** {title}
+Classify complexity (Low: 1-6h, Medium: 6-15h, High: 15-25h) and estimate hours.
 
-**Description:**
-{body[:1500] if body else 'No description provided'}
-
-**Labels:** {labels_str}
-
-Based on the information above, provide:
-1. **Complexity**: Classify as "Low", "Medium", or "High" based on:
-   - Low: Simple bug fixes, documentation updates, minor UI changes (1-6 hours)
-   - Medium: Feature additions, moderate refactoring, integration tasks (6-15 hours)
-   - High: Complex features, architectural changes, major refactoring (15-25 hours)
-
-2. **Estimated Hours**: Provide realistic development hours within the complexity range.
-
-3. **Concise Reasoning**: Provide 3-4 key bullet points using HTML formatting:
-   - Use <ul> and <li> tags for the 3-4 main points
-   - Use <strong> tags for emphasis
-   - Keep it concise and actionable
-
-   Focus on:
-   - What needs to be done (1-2 sentences)
-   - Key technical considerations
-   - Major components affected
-   - Testing or validation needed (if significant)
-
-Respond ONLY with a valid JSON object in this exact format:
+Return JSON only:
 {{
     "complexity": "Low|Medium|High",
     "estimated_hours": <number>,
-    "reasoning": "<ul><li><strong>Task:</strong> Brief description</li><li><strong>Technical:</strong> Key considerations</li><li><strong>Components:</strong> What's affected</li><li><strong>Testing:</strong> What to test (optional)</li></ul>"
+    "reasoning": "<ul><li>Task summary</li><li>Technical notes</li><li>Components affected</li></ul>"
 }}
 
-Keep reasoning to 3-4 bullet points maximum."""
+Keep reasoning to 3 brief points."""
 
         return prompt
 
@@ -158,7 +138,7 @@ Keep reasoning to 3-4 bullet points maximum."""
 
     def analyze_issue(self, title: str, body: str, labels: List[str]) -> Dict:
         """
-        Analyze a GitHub issue using LLM
+        Analyze a GitHub issue using LLM with caching
 
         Args:
             title: Issue title
@@ -168,6 +148,14 @@ Keep reasoning to 3-4 bullet points maximum."""
         Returns:
             Dictionary with complexity and estimated_cost
         """
+        # Create cache key from issue content
+        cache_key = hashlib.md5(f"{title}{body[:1000]}{''.join(sorted(labels))}".encode()).hexdigest()
+
+        # Check cache first
+        if cache_key in self.cache:
+            print(f"Using cached result for issue: {title[:50]}")
+            return self.cache[cache_key]
+
         prompt = self._build_analysis_prompt(title, body, labels)
 
         try:
@@ -176,7 +164,11 @@ Keep reasoning to 3-4 bullet points maximum."""
             else:
                 response = self._analyze_with_openai(prompt)
 
-            return self._parse_llm_response(response)
+            result = self._parse_llm_response(response)
+
+            # Cache the result
+            self.cache[cache_key] = result
+            return result
 
         except Exception as e:
             print(f"Error during LLM analysis: {e}")
@@ -199,7 +191,7 @@ Keep reasoning to 3-4 bullet points maximum."""
         """
         message = self.client.messages.create(
             model=self.model,
-            max_tokens=500,
+            max_tokens=300,
             messages=[
                 {"role": "user", "content": prompt}
             ]
@@ -222,15 +214,15 @@ Keep reasoning to 3-4 bullet points maximum."""
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert software project manager who estimates task complexity and costs."
+                    "content": "Estimate task complexity and hours."
                 },
                 {
                     "role": "user",
                     "content": prompt
                 }
             ],
-            max_tokens=500,
-            temperature=0.3
+            max_tokens=300,
+            temperature=0.2
         )
 
         return response.choices[0].message.content

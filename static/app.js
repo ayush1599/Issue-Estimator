@@ -98,12 +98,25 @@ function switchView(view) {
 function saveToHistory(analysisData) {
     try {
         const history = getHistory();
-        const historyItem = {
-            id: Date.now(),
-            timestamp: new Date().toISOString(),
-            data: analysisData
-        };
-        history.unshift(historyItem); // Add to beginning
+        const baseTimestamp = Date.now();
+
+        // Create separate history entries for each repository
+        analysisData.repo_results.forEach((repoResult, index) => {
+            if (repoResult.status === 'success') {
+                const historyItem = {
+                    id: baseTimestamp + index,
+                    timestamp: new Date(baseTimestamp + index).toISOString(),
+                    data: {
+                        hourly_rate: analysisData.hourly_rate,
+                        total_issues: repoResult.issue_count || repoResult.total_issues || 0,
+                        total_hours: repoResult.total_hours,
+                        total_cost: repoResult.total_cost,
+                        repo_results: [repoResult] // Single repo
+                    }
+                };
+                history.unshift(historyItem);
+            }
+        });
 
         // Keep only last 50 analyses
         if (history.length > 50) {
@@ -171,6 +184,14 @@ function createHistoryRow(item) {
         .map(r => `${r.owner}/${r.repo}`)
         .join(', ');
 
+    // Handle total_issues - support old and new data formats
+    let totalIssues = data.total_issues;
+    if (totalIssues === undefined && data.repo_results && data.repo_results.length > 0) {
+        // Fallback: calculate from repo_results for old entries
+        totalIssues = data.repo_results.reduce((sum, r) =>
+            sum + (r.issue_count || r.issues?.length || 0), 0);
+    }
+
     row.innerHTML = `
         <div class="table-cell">
             <div>${dateStr}</div>
@@ -180,7 +201,7 @@ function createHistoryRow(item) {
             <div class="history-repos">${repoNames || 'N/A'}</div>
         </div>
         <div class="table-cell">
-            <div class="font-medium">${data.total_issues}</div>
+            <div class="font-medium">${totalIssues || 0}</div>
         </div>
         <div class="table-cell">
             <div class="font-medium">${data.total_hours}h</div>
@@ -263,14 +284,14 @@ window.downloadHistoryItem = async function(itemId) {
         const a = document.createElement('a');
         a.href = url;
         const timestamp = new Date(item.timestamp).toISOString().split('T')[0];
-        a.download = `analysis_${timestamp}.csv`;
+        a.download = `analysis_${timestamp}.xlsx`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
     } catch (error) {
-        console.error('Error downloading CSV:', error);
-        showError('Failed to download CSV file');
+        console.error('Error downloading Excel:', error);
+        showError('Failed to download Excel file');
     }
 };
 
@@ -813,15 +834,15 @@ async function handleDownloadAllCsv() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'all_repositories_issues.csv';
+        a.download = 'all_repositories_issues.xlsx';
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
 
     } catch (error) {
-        console.error('Error downloading CSV:', error);
-        showError('Failed to download CSV file');
+        console.error('Error downloading Excel:', error);
+        showError('Failed to download Excel file');
     }
 }
 

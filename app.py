@@ -15,6 +15,10 @@ from flask_cors import CORS
 import requests
 import pandas as pd
 from dotenv import load_dotenv
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils.dataframe import dataframe_to_rows
+import html
 
 from llm_analyzer import LLMAnalyzer
 
@@ -588,7 +592,7 @@ def get_progress(session_id):
 @app.route('/api/download-csv', methods=['POST'])
 def download_csv():
     """
-    Generate and download CSV file of analyzed issues
+    Generate and download Excel file of analyzed issues with proper formatting
 
     Expected JSON body:
         {
@@ -606,32 +610,90 @@ def download_csv():
             issues = analysis_cache[cache_key]
 
         if not issues:
-            return jsonify({'error': 'No data available for CSV generation'}), 400
+            return jsonify({'error': 'No data available for Excel generation'}), 400
 
-        # Create DataFrame
-        df = pd.DataFrame(issues)
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Issue Analysis"
 
-        # Reorder columns to include hours and reasoning
-        column_order = ['issue_number', 'title', 'complexity', 'estimated_hours', 'estimated_cost', 'labels', 'url', 'reasoning']
-        df = df[column_order]
+        # Define headers with proper naming
+        headers = ['Issue #', 'Title', 'Complexity', 'Hours', 'Cost', 'Labels', 'URL', 'Reasoning']
 
-        # Generate CSV in memory
-        csv_string = df.to_csv(index=False)
+        # Add headers to first row
+        ws.append(headers)
 
-        # Convert to bytes for send_file
-        csv_bytes = BytesIO(csv_string.encode('utf-8'))
-        csv_bytes.seek(0)
+        # Style headers: Bold, Black background, White text
+        header_font = Font(bold=True, color='FFFFFF', size=12)
+        header_fill = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
+        header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+
+        # Add data rows
+        for issue in issues:
+            # Strip HTML tags from reasoning
+            reasoning_text = issue.get('reasoning', '')
+            if reasoning_text:
+                # Remove HTML tags and convert to plain text
+                reasoning_text = html.unescape(re.sub('<[^<]+?>', '', reasoning_text))
+                # Replace multiple spaces/newlines with single space
+                reasoning_text = ' '.join(reasoning_text.split())
+
+            row_data = [
+                issue.get('issue_number', ''),
+                issue.get('title', ''),
+                issue.get('complexity', ''),
+                issue.get('estimated_hours', 0),
+                issue.get('estimated_cost', 0),
+                issue.get('labels', ''),
+                issue.get('url', ''),
+                reasoning_text
+            ]
+            ws.append(row_data)
+
+        # Adjust column widths
+        column_widths = {
+            'A': 10,   # Issue #
+            'B': 50,   # Title
+            'C': 12,   # Complexity
+            'D': 10,   # Hours
+            'E': 12,   # Cost
+            'F': 30,   # Labels
+            'G': 50,   # URL
+            'H': 80    # Reasoning
+        }
+
+        for col, width in column_widths.items():
+            ws.column_dimensions[col].width = width
+
+        # Set row height for header
+        ws.row_dimensions[1].height = 25
+
+        # Align data cells
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
+            for cell in row:
+                cell.alignment = Alignment(vertical='top', wrap_text=True)
+
+        # Save to BytesIO
+        excel_bytes = BytesIO()
+        wb.save(excel_bytes)
+        excel_bytes.seek(0)
 
         # Send file
         return send_file(
-            csv_bytes,
-            mimetype='text/csv',
+            excel_bytes,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
-            download_name='issue_costs.csv'
+            download_name='issue_analysis.xlsx'
         )
 
     except Exception as e:
-        print(f"Error generating CSV: {str(e)}")
+        print(f"Error generating Excel: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
