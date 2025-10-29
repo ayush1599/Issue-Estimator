@@ -32,8 +32,8 @@ class LLMAnalyzer:
             raise ValueError("OPENAI_API_KEY not found in environment variables")
 
         self.client = OpenAI(api_key=api_key)
-        # Using GPT-4o-mini for reliable and cost-efficient analysis
-        self.model = "gpt-4o-mini"
+        # Using GPT-5-Nano for faster, cheaper analysis
+        self.model = "gpt-5-nano"
 
     def _build_analysis_prompt(self, title: str, body: str, labels: List[str]) -> str:
         """
@@ -163,6 +163,9 @@ Keep reasoning to 3 brief points."""
             response = self._analyze_with_openai(prompt)
             result = self._parse_llm_response(response)
 
+            # Calculate estimated cost based on hours and default hourly rate
+            result['estimated_cost'] = round(result['estimated_hours'] * self.DEFAULT_HOURLY_RATE, 2)
+
             # Cache the result
             self.cache[cache_key] = result
             return result
@@ -173,6 +176,7 @@ Keep reasoning to 3 brief points."""
             return {
                 'complexity': 'Medium',
                 'estimated_hours': 8.0,
+                'estimated_cost': round(8.0 * self.DEFAULT_HOURLY_RATE, 2),
                 'reasoning': f'Default estimate due to error: {str(e)}. Manual review recommended.'
             }
 
@@ -207,13 +211,13 @@ Keep reasoning to 3 brief points."""
                             "content": prompt
                         }
                     ],
+                    reasoning={"effort": "low"},        # GPT-5 parameter
+                    text={"verbosity": "medium"},       # GPT-5 parameter
                     max_tokens=800,
                     temperature=0.2,
                     timeout=timeout
                 )
-                print(f"DEBUG: API response object: {response}")
-                print(f"DEBUG: Response choices: {response.choices}")
-                print(f"DEBUG: Message content: {response.choices[0].message.content}")
+                print(f"DEBUG: Response object received successfully.")
                 return response.choices[0].message.content
             except Exception as e:
                 last_error = e
