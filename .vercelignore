@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.git/
+.vscode/
+.claude/
+node_modules/
+design-docs/
+*.md
+!README.md
+.gitignore
