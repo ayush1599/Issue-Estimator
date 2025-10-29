@@ -765,6 +765,45 @@ def health_check():
     })
 
 
+@app.route('/api/debug', methods=['GET'])
+def debug_env():
+    """Debug endpoint to check environment and OpenRouter connectivity"""
+    debug_info = {
+        'vercel_env': os.getenv('VERCEL') == '1',
+        'llm_provider': os.getenv('LLM_PROVIDER', 'not set'),
+        'openrouter_key_present': bool(os.getenv('OPENROUTER_API_KEY')),
+        'github_token_present': bool(os.getenv('GITHUB_TOKEN')),
+    }
+    
+    # Test OpenRouter connection if key is present
+    if debug_info['openrouter_key_present'] and debug_info['llm_provider'] == 'openrouter':
+        try:
+            from openai import OpenAI
+            client = OpenAI(
+                api_key=os.getenv('OPENROUTER_API_KEY'),
+                base_url="https://openrouter.ai/api/v1"
+            )
+            
+            # Quick test call with short timeout
+            response = client.chat.completions.create(
+                model="openai/gpt-4o-mini",
+                messages=[{"role": "user", "content": "Test"}],
+                max_tokens=5,
+                timeout=10.0
+            )
+            
+            debug_info['openrouter_test'] = 'SUCCESS'
+            debug_info['openrouter_response'] = response.choices[0].message.content
+            
+        except Exception as e:
+            debug_info['openrouter_test'] = 'FAILED'
+            debug_info['openrouter_error'] = str(e)
+    else:
+        debug_info['openrouter_test'] = 'SKIPPED'
+    
+    return jsonify(debug_info)
+
+
 if __name__ == '__main__':
     # Check for API keys
     llm_provider = os.getenv('LLM_PROVIDER', 'anthropic')

@@ -28,7 +28,7 @@ class LLMAnalyzer:
         self.cache = {}  # In-memory cache for API responses
 
         # Check which provider to use
-        provider = os.getenv('LLM_PROVIDER', 'openai').lower()
+        provider = os.getenv('LLM_PROVIDER', 'openrouter').lower()
 
         if provider == 'openrouter':
             api_key = os.getenv('OPENROUTER_API_KEY')
@@ -255,7 +255,7 @@ Return ONLY valid JSON with NO markdown, NO code blocks, NO explanations outside
         # Detect if running on Vercel (shorter timeout, no retries)
         is_vercel = os.getenv('VERCEL') == '1'
         max_retries = 1 if is_vercel else 3
-        timeout = 8.0 if is_vercel else 30.0
+        timeout = 25.0 if is_vercel else 30.0  # Increased Vercel timeout
         last_error = None
 
         for attempt in range(max_retries):
@@ -307,6 +307,13 @@ Return ONLY valid JSON with NO markdown, NO code blocks, NO explanations outside
                 last_error = e
                 error_msg = str(e)
                 print(f"OpenAI API attempt {attempt + 1}/{max_retries} failed: {error_msg}")
+                
+                # Log additional details for Vercel debugging
+                if is_vercel:
+                    print(f"VERCEL DEBUG - Error type: {type(e).__name__}")
+                    print(f"VERCEL DEBUG - Full error: {repr(e)}")
+                    print(f"VERCEL DEBUG - Model: {self.model}")
+                    print(f"VERCEL DEBUG - Timeout: {timeout}")
 
                 # Only retry if not on Vercel and not last attempt
                 if not is_vercel and attempt < max_retries - 1:
