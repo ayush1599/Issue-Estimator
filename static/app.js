@@ -453,7 +453,7 @@ async function handleAnalyze() {
     updateProgressCircle(0);
 
     try {
-        // Call backend API - for Vercel, this processes synchronously
+        // Call backend API (it returns immediately with session_id)
         const response = await fetch(`${API_BASE_URL}/api/analyze`, {
             method: 'POST',
             headers: {
@@ -467,35 +467,16 @@ async function handleAnalyze() {
 
         const data = await response.json();
 
-        if (!response.ok) {
+        if (!response.ok && response.status !== 202) {
+            stopProgressPolling();
             throw new Error(data.error || 'Failed to analyze repositories');
         }
 
-        // For Vercel deployment, we get results immediately
-        if (response.status === 200 && data.repo_results) {
-            // Handle case where no issues found in any repo
-            if (!data.repo_results || data.total_issues === 0) {
-                showError('No open issues found in any repository');
-                hideLoading();
-                setButtonLoading(false);
-                return;
-            }
-
-            // Store results
-            currentResults = data;
-
-            // Save to history
-            saveToHistory(data);
-
-            // Display results
-            displayResults(data);
-            hideLoading();
-            setButtonLoading(false);
-        } else if (response.status === 202 && data.session_id) {
-            // Fallback to polling if server returns session_id (for local development)
+        // Start polling for progress updates with the session_id
+        if (data.session_id) {
             startProgressPolling(data.session_id);
         } else {
-            throw new Error('Unexpected response from server');
+            throw new Error('No session ID received from server');
         }
 
     } catch (error) {
@@ -1060,14 +1041,6 @@ function startProgressPolling(sessionId) {
                 if (progress.status === 'error') {
                     stopProgressPolling();
                     showError(progress.message || 'An error occurred during analysis');
-                    hideLoading();
-                    setButtonLoading(false);
-                }
-
-                // Handle expired session (Vercel serverless issue)
-                if (progress.status === 'expired') {
-                    stopProgressPolling();
-                    showError('Session expired due to serverless limitations. Please try again.');
                     hideLoading();
                     setButtonLoading(false);
                 }

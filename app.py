@@ -202,19 +202,18 @@ def process_single_repo(repo_url, hourly_rate, github_client, repo_index, total_
         for idx, issue in enumerate(issues, 1):
             print(f"[Repo {repo_index}/{total_repos}] Analyzing issue {idx}/{len(issues)}: #{issue['issue_number']}")
 
-            # Update progress for this specific issue (only if session_id provided)
-            if session_id:
-                base_progress = int((repo_index - 1) / total_repos * 100)
-                repo_progress = int((idx / len(issues)) * (100 / total_repos))
-                total_progress = min(base_progress + repo_progress, 99)
+            # Update progress for this specific issue
+            base_progress = int((repo_index - 1) / total_repos * 100)
+            repo_progress = int((idx / len(issues)) * (100 / total_repos))
+            total_progress = min(base_progress + repo_progress, 99)
 
-                progress_tracking[session_id].update({
-                    'progress': total_progress,
-                    'message': f'Repo {repo_index}/{total_repos}: Analyzing issue {idx}/{len(issues)}: {issue["title"][:50]}...',
-                    'current_repo': repo_index,
-                    'current_issue': idx,
-                    'total_issues_in_repo': len(issues)
-                })
+            progress_tracking[session_id].update({
+                'progress': total_progress,
+                'message': f'Repo {repo_index}/{total_repos}: Analyzing issue {idx}/{len(issues)}: {issue["title"][:50]}...',
+                'current_repo': repo_index,
+                'current_issue': idx,
+                'total_issues_in_repo': len(issues)
+            })
 
             try:
                 analysis = llm_analyzer.analyze_issue(
@@ -298,53 +297,49 @@ def process_multiple_repos(session_id, repo_urls, hourly_rate):
         repo_results = []
 
         for repo_index, repo_url in enumerate(repo_urls, 1):
-            # Update progress for current repo (only if session_id provided)
-            if session_id:
-                progress_percent = int((repo_index - 1) / total_repos * 100)
-                progress_tracking[session_id].update({
-                    'progress': progress_percent,
-                    'message': f'Analyzing repository {repo_index}/{total_repos}...',
-                    'current_repo': repo_index,
-                    'total_repos': total_repos
-                })
+            # Update progress for current repo
+            progress_percent = int((repo_index - 1) / total_repos * 100)
+            progress_tracking[session_id].update({
+                'progress': progress_percent,
+                'message': f'Analyzing repository {repo_index}/{total_repos}...',
+                'current_repo': repo_index,
+                'total_repos': total_repos
+            })
 
             # Process this repository
             result = process_single_repo(repo_url, hourly_rate, github_client, repo_index, total_repos, session_id)
             repo_results.append(result)
 
-            # Update progress tracking with intermediate results (only if session_id provided)
-            if session_id:
-                progress_tracking[session_id]['repo_results'] = repo_results
+            # Update progress tracking with intermediate results
+            progress_tracking[session_id]['repo_results'] = repo_results
 
         # Calculate overall totals
         total_cost = sum(r.get('total_cost', 0) for r in repo_results)
         total_hours = sum(r.get('total_hours', 0) for r in repo_results)
         total_issues = sum(r.get('issue_count', 0) for r in repo_results)
 
-        # Mark as complete with all results (only if session_id provided)
-        if session_id:
-            progress_tracking[session_id].update({
-                'status': 'complete',
-                'progress': 100,
-                'message': 'Analysis complete!',
-                'result': {
-                    'repo_results': repo_results,
-                    'total_cost': round(total_cost, 2),
-                    'total_hours': round(total_hours, 1),
-                    'total_issues': total_issues,
-                    'hourly_rate': hourly_rate,
-                    'session_id': session_id
-                }
-            })
+        # Mark as complete with all results
+        progress_tracking[session_id].update({
+            'status': 'complete',
+            'progress': 100,
+            'message': 'Analysis complete!',
+            'result': {
+                'repo_results': repo_results,
+                'total_cost': round(total_cost, 2),
+                'total_hours': round(total_hours, 1),
+                'total_issues': total_issues,
+                'hourly_rate': hourly_rate,
+                'session_id': session_id
+            }
+        })
 
     except Exception as e:
         print(f"Error in background analysis: {str(e)}")
-        if session_id:
-            progress_tracking[session_id].update({
-                'status': 'error',
-                'progress': 0,
-                'message': f'Error: {str(e)}'
-            })
+        progress_tracking[session_id].update({
+            'status': 'error',
+            'progress': 0,
+            'message': f'Error: {str(e)}'
+        })
 
 
 def process_analysis(session_id, repo_url, hourly_rate):
@@ -506,7 +501,7 @@ def process_analysis(session_id, repo_url, hourly_rate):
 @app.route('/api/analyze', methods=['POST'])
 def analyze_issues():
     """
-    Main endpoint to analyze GitHub repository issues - for Vercel, process synchronously
+    Main endpoint to analyze GitHub repository issues - returns immediately with session_id
 
     Expected JSON body:
         {
@@ -515,7 +510,7 @@ def analyze_issues():
         }
 
     Returns:
-        JSON with analysis results
+        JSON with session_id for progress tracking
     """
     try:
         data = request.get_json()
@@ -538,31 +533,35 @@ def analyze_issues():
         if hourly_rate <= 0:
             return jsonify({'error': 'Hourly rate must be positive'}), 400
 
-        # For Vercel, process synchronously to avoid serverless issues
-        github_client = GitHubAPIClient()
-        repo_results = []
+        # Generate session ID early for progress tracking
+        session_id = str(uuid.uuid4())
 
-        for repo_index, repo_url in enumerate(repo_urls, 1):
-            print(f"Processing repository {repo_index}/{len(repo_urls)}: {repo_url}")
-            
-            # Process this repository
-            result = process_single_repo(repo_url, hourly_rate, github_client, repo_index, len(repo_urls), None)
-            repo_results.append(result)
+        # Initialize progress tracking - fetching stage
+        progress_tracking[session_id] = {
+            'status': 'connecting',
+            'progress': 0,
+            'message': 'Connecting to GitHub...',
+            'total': 0,
+            'current': 0,
+            'result': None,
+            'repo_count': len(repo_urls),
+            'repo_results': []
+        }
 
-        # Calculate overall totals
-        total_cost = sum(r.get('total_cost', 0) for r in repo_results)
-        total_hours = sum(r.get('total_hours', 0) for r in repo_results)
-        total_issues = sum(r.get('issue_count', 0) for r in repo_results)
+        # Start background processing for multiple repos
+        thread = threading.Thread(
+            target=process_multiple_repos,
+            args=(session_id, repo_urls, hourly_rate)
+        )
+        thread.daemon = True
+        thread.start()
 
-        # Return results immediately
+        # Return immediately with session_id
         return jsonify({
-            'repo_results': repo_results,
-            'total_cost': round(total_cost, 2),
-            'total_hours': round(total_hours, 1),
-            'total_issues': total_issues,
-            'hourly_rate': hourly_rate,
-            'session_id': str(uuid.uuid4())  # Generate for compatibility
-        }), 200
+            'session_id': session_id,
+            'message': 'Analysis started',
+            'repo_count': len(repo_urls)
+        }), 202
 
     except Exception as e:
         print(f"Error: {str(e)}")
@@ -583,13 +582,11 @@ def get_progress(session_id):
     if session_id in progress_tracking:
         return jsonify(progress_tracking[session_id])
     else:
-        # On Vercel, sessions might be lost due to serverless nature
-        # Return a more user-friendly response
         return jsonify({
-            'status': 'expired',
+            'status': 'not_found',
             'progress': 0,
-            'message': 'Session expired. Please start a new analysis.'
-        }), 200
+            'message': 'Session not found'
+        }), 404
 
 
 @app.route('/api/download-csv', methods=['POST'])
