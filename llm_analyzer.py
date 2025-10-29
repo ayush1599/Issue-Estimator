@@ -32,8 +32,8 @@ class LLMAnalyzer:
             raise ValueError("OPENAI_API_KEY not found in environment variables")
 
         self.client = OpenAI(api_key=api_key)
-        # Using GPT-5-nano for latest model capabilities
-        self.model = "gpt-5-nano"
+        # Using GPT-4o-mini for reliable and cost-efficient analysis
+        self.model = "gpt-4o-mini"
 
     def _build_analysis_prompt(self, title: str, body: str, labels: List[str]) -> str:
         """
@@ -194,6 +194,7 @@ Keep reasoning to 3 brief points."""
 
         for attempt in range(max_retries):
             try:
+                print(f"DEBUG: Making API call to model: {self.model}")
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=[
@@ -206,9 +207,13 @@ Keep reasoning to 3 brief points."""
                             "content": prompt
                         }
                     ],
-                    max_completion_tokens=300,
+                    max_tokens=800,
+                    temperature=0.2,
                     timeout=timeout
                 )
+                print(f"DEBUG: API response object: {response}")
+                print(f"DEBUG: Response choices: {response.choices}")
+                print(f"DEBUG: Message content: {response.choices[0].message.content}")
                 return response.choices[0].message.content
             except Exception as e:
                 last_error = e
