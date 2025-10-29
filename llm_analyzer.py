@@ -29,17 +29,40 @@ class LLMAnalyzer:
 
         # Check which provider to use
         provider = os.getenv('LLM_PROVIDER', 'openrouter').lower()
+        print(f"DEBUG: LLM_PROVIDER env var: {os.getenv('LLM_PROVIDER', 'NOT SET')}")
+        print(f"DEBUG: Using provider: {provider}")
 
         if provider == 'openrouter':
             api_key = os.getenv('OPENROUTER_API_KEY')
             if not api_key:
                 raise ValueError("OPENROUTER_API_KEY not found in environment variables")
 
-            # Configure OpenAI client to use OpenRouter
-            self.client = OpenAI(
-                api_key=api_key,
-                base_url="https://openrouter.ai/api/v1"
-            )
+            # Configure OpenAI client to use OpenRouter with Vercel-optimized settings
+            is_vercel = os.getenv('VERCEL') == '1'
+            
+            if is_vercel:
+                # Vercel-specific configuration with custom timeout
+                import httpx
+                http_client = httpx.Client(
+                    timeout=httpx.Timeout(timeout=30.0, connect=10.0, read=30.0),
+                    limits=httpx.Limits(max_connections=10, max_keepalive_connections=2),
+                    verify=True  # Ensure SSL verification
+                )
+                
+                self.client = OpenAI(
+                    api_key=api_key,
+                    base_url="https://openrouter.ai/api/v1",
+                    http_client=http_client,
+                    max_retries=0  # Disable automatic retries, we handle them manually
+                )
+            else:
+                # Standard configuration for local development
+                self.client = OpenAI(
+                    api_key=api_key,
+                    base_url="https://openrouter.ai/api/v1",
+                    max_retries=0  # Disable automatic retries, we handle them manually
+                )
+            
             # Using GPT-5-nano via OpenRouter
             self.model = "openai/gpt-5-nano"
         else:
@@ -258,9 +281,14 @@ Return ONLY valid JSON with NO markdown, NO code blocks, NO explanations outside
         timeout = 25.0 if is_vercel else 30.0  # Increased Vercel timeout
         last_error = None
 
+        print(f"DEBUG: Starting API call - Vercel: {is_vercel}, Timeout: {timeout}")
+        print(f"DEBUG: Base URL: {self.client.base_url}")
+        print(f"DEBUG: Model: {self.model}")
+        print(f"DEBUG: Provider should be OpenRouter (base_url contains 'openrouter'): {'openrouter' in str(self.client.base_url).lower()}")
+
         for attempt in range(max_retries):
             try:
-                print(f"DEBUG: Making API call to model: {self.model}")
+                print(f"DEBUG: Making API call attempt {attempt + 1}/{max_retries}")
 
                 # Build API parameters (some models don't support temperature)
                 # GPT-5 models use reasoning tokens internally + output in content field
@@ -287,7 +315,9 @@ Return ONLY valid JSON with NO markdown, NO code blocks, NO explanations outside
                 if "gpt-5-nano" not in self.model:
                     api_params["temperature"] = 0.2
 
+                print(f"DEBUG: API params prepared, making request...")
                 response = self.client.chat.completions.create(**api_params)
+                
                 print(f"DEBUG: Response object received successfully.")
 
                 # Get the response content
@@ -303,24 +333,33 @@ Return ONLY valid JSON with NO markdown, NO code blocks, NO explanations outside
                     print(f"DEBUG: Reasoning preview: {message.reasoning[:200]}")
 
                 return content if content else ""
+                
             except Exception as e:
                 last_error = e
                 error_msg = str(e)
                 print(f"OpenAI API attempt {attempt + 1}/{max_retries} failed: {error_msg}")
                 
-                # Log additional details for Vercel debugging
-                if is_vercel:
-                    print(f"VERCEL DEBUG - Error type: {type(e).__name__}")
-                    print(f"VERCEL DEBUG - Full error: {repr(e)}")
-                    print(f"VERCEL DEBUG - Model: {self.model}")
-                    print(f"VERCEL DEBUG - Timeout: {timeout}")
-
+                # Log additional details for debugging
+                print(f"DEBUG - Error type: {type(e).__name__}")
+                print(f"DEBUG - Full error: {repr(e)}")
+                
+                # Check for specific connection errors
+                if "connection" in error_msg.lower() or "timeout" in error_msg.lower():
+                    print(f"DEBUG - Connection/timeout error detected")
+                    if is_vercel:
+                        print(f"DEBUG - This is a Vercel deployment, connection issues are common")
+                
+                # Check for SSL/TLS errors
+                if "ssl" in error_msg.lower() or "certificate" in error_msg.lower():
+                    print(f"DEBUG - SSL/Certificate error detected")
+                
                 # Only retry if not on Vercel and not last attempt
                 if not is_vercel and attempt < max_retries - 1:
                     import time
                     time.sleep(0.5)  # Shorter retry delay
 
         # If all retries failed, raise the last error
+        print(f"DEBUG - All attempts failed, raising last error: {last_error}")
         raise last_error
 
 
