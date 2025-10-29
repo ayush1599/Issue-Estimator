@@ -32,8 +32,8 @@ class LLMAnalyzer:
             raise ValueError("OPENAI_API_KEY not found in environment variables")
 
         self.client = OpenAI(api_key=api_key)
-        # Using GPT-4o-mini for faster and more cost-efficient analysis
-        self.model = "gpt-4o-mini"
+        # Using GPT-5-nano for latest model capabilities
+        self.model = "gpt-5-nano"
 
     def _build_analysis_prompt(self, title: str, body: str, labels: List[str]) -> str:
         """
