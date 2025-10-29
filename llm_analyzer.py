@@ -194,7 +194,6 @@ Keep reasoning to 3 brief points."""
                         }
                     ],
                     max_completion_tokens=300,
-                    temperature=0.2,
                     timeout=timeout
                 )
                 return response.choices[0].message.content
