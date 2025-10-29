@@ -181,7 +181,7 @@ Keep reasoning to 3 brief points."""
 
     def _analyze_with_anthropic(self, prompt: str) -> str:
         """
-        Get analysis from Claude with retry logic
+        Get analysis from Claude with retry logic optimized for Vercel
 
         Args:
             prompt: Analysis prompt
@@ -189,7 +189,10 @@ Keep reasoning to 3 brief points."""
         Returns:
             Response text
         """
-        max_retries = 3
+        # Detect if running on Vercel (shorter timeout, no retries)
+        is_vercel = os.getenv('VERCEL') == '1'
+        max_retries = 1 if is_vercel else 3
+        timeout = 8.0 if is_vercel else 30.0
         last_error = None
 
         for attempt in range(max_retries):
@@ -200,22 +203,25 @@ Keep reasoning to 3 brief points."""
                     messages=[
                         {"role": "user", "content": prompt}
                     ],
-                    timeout=30.0  # 30 second timeout
+                    timeout=timeout
                 )
                 return message.content[0].text
             except Exception as e:
                 last_error = e
-                print(f"Anthropic API attempt {attempt + 1} failed: {str(e)}")
-                if attempt < max_retries - 1:
+                error_msg = str(e)
+                print(f"Anthropic API attempt {attempt + 1}/{max_retries} failed: {error_msg}")
+
+                # Only retry if not on Vercel and not last attempt
+                if not is_vercel and attempt < max_retries - 1:
                     import time
-                    time.sleep(1)  # Wait 1 second before retry
+                    time.sleep(0.5)  # Shorter retry delay
 
         # If all retries failed, raise the last error
         raise last_error
 
     def _analyze_with_openai(self, prompt: str) -> str:
         """
-        Get analysis from OpenAI with retry logic
+        Get analysis from OpenAI with retry logic optimized for Vercel
 
         Args:
             prompt: Analysis prompt
@@ -223,7 +229,10 @@ Keep reasoning to 3 brief points."""
         Returns:
             Response text
         """
-        max_retries = 3
+        # Detect if running on Vercel (shorter timeout, no retries)
+        is_vercel = os.getenv('VERCEL') == '1'
+        max_retries = 1 if is_vercel else 3
+        timeout = 8.0 if is_vercel else 30.0
         last_error = None
 
         for attempt in range(max_retries):
@@ -242,15 +251,18 @@ Keep reasoning to 3 brief points."""
                     ],
                     max_tokens=300,
                     temperature=0.2,
-                    timeout=30.0  # 30 second timeout
+                    timeout=timeout
                 )
                 return response.choices[0].message.content
             except Exception as e:
                 last_error = e
-                print(f"OpenAI API attempt {attempt + 1} failed: {str(e)}")
-                if attempt < max_retries - 1:
+                error_msg = str(e)
+                print(f"OpenAI API attempt {attempt + 1}/{max_retries} failed: {error_msg}")
+
+                # Only retry if not on Vercel and not last attempt
+                if not is_vercel and attempt < max_retries - 1:
                     import time
-                    time.sleep(1)  # Wait 1 second before retry
+                    time.sleep(0.5)  # Shorter retry delay
 
         # If all retries failed, raise the last error
         raise last_error
