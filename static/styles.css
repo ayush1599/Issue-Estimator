@@ -1776,10 +1776,24 @@ footer {
 }
 
 .btn-icon.btn-danger {
+    background-color: transparent !important;
     color: var(--error-500);
+    border: none;
 }
 
 .btn-icon.btn-danger:hover {
-    background-color: var(--error-50);
+    background-color: var(--error-50) !important;
     color: var(--error-600);
+}
+
+/* Stop button specific styles */
+.btn-danger {
+    background-color: var(--error-500);
+    color: white;
+    border: 1px solid var(--error-500);
+}
+
+.btn-danger:hover {
+    background-color: var(--error-600);
+    border-color: var(--error-600);
 }

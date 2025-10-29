@@ -51,6 +51,9 @@ class GitHubAPIClient:
         }
         if self.token:
             self.headers['Authorization'] = f'token {self.token}'
+            print(f"GitHub token loaded: {self.token[:8]}...{self.token[-4:] if len(self.token) > 12 else 'short'}")
+        else:
+            print("WARNING: No GitHub token found - using unauthenticated requests (60/hour limit)")
 
     def parse_repo_url(self, url: str) -> tuple:
         """
@@ -92,6 +95,8 @@ class GitHubAPIClient:
         page = 1
         per_page = 100
 
+        print(f"Starting to fetch issues from {owner}/{repo}")
+
         while True:
             url = f"{self.BASE_URL}/repos/{owner}/{repo}/issues"
             params = {
@@ -100,31 +105,55 @@ class GitHubAPIClient:
                 'page': page
             }
 
+            print(f"Fetching page {page} (up to {per_page} items per page)")
             response = requests.get(url, headers=self.headers, params=params)
+            
+            # Debug rate limit info
+            rate_limit_remaining = response.headers.get('X-RateLimit-Remaining', 'unknown')
+            rate_limit_limit = response.headers.get('X-RateLimit-Limit', 'unknown')
+            print(f"Rate limit: {rate_limit_remaining}/{rate_limit_limit} remaining")
 
             if response.status_code == 404:
                 raise ValueError("Repository not found or is private")
             elif response.status_code == 403:
-                raise ValueError("API rate limit exceeded. Please provide a GitHub token.")
+                # Check rate limit headers
+                rate_limit_remaining = response.headers.get('X-RateLimit-Remaining', 'unknown')
+                rate_limit_reset = response.headers.get('X-RateLimit-Reset', 'unknown')
+                print(f"Rate limit hit. Remaining: {rate_limit_remaining}, Reset: {rate_limit_reset}")
+                print(f"Headers: {dict(response.headers)}")
+                
+                if rate_limit_remaining == '0':
+                    raise ValueError(f"GitHub API rate limit exceeded (0 requests remaining). Please add a GITHUB_TOKEN environment variable for higher limits (5000/hour vs 60/hour). Current issues fetched: {len(issues)}")
+                else:
+                    raise ValueError("API rate limit exceeded. Please provide a GitHub token.")
             elif response.status_code != 200:
+                print(f"API Error {response.status_code}: {response.text}")
                 raise ValueError(f"GitHub API error: {response.status_code}")
 
             batch = response.json()
+            print(f"Page {page}: Received {len(batch)} total items from API")
 
             # Filter out pull requests (GitHub API returns PRs as issues)
-            batch = [issue for issue in batch if 'pull_request' not in issue]
+            issues_only = [issue for issue in batch if 'pull_request' not in issue]
+            prs_filtered = len(batch) - len(issues_only)
+            
+            print(f"Page {page}: {len(issues_only)} issues, {prs_filtered} PRs filtered out")
 
-            if not batch:
+            if not issues_only:
+                print(f"No more issues found on page {page}, stopping pagination")
                 break
 
-            issues.extend(batch)
+            issues.extend(issues_only)
+            print(f"Total issues collected so far: {len(issues)}")
 
-            # Check if there are more pages
+            # Check if there are more pages - use original batch size, not filtered
             if len(batch) < per_page:
+                print(f"Last page reached (got {len(batch)} < {per_page})")
                 break
 
             page += 1
 
+        print(f"Finished fetching. Total issues: {len(issues)}")
         return issues
 
     def extract_issue_data(self, issue: Dict) -> Dict:

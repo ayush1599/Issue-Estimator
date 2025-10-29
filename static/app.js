@@ -16,6 +16,7 @@ const repoInputsContainer = document.getElementById('repo-inputs-container');
 const addRepoBtn = document.getElementById('add-repo-btn');
 const hourlyRateInput = document.getElementById('hourly-rate');
 const analyzeBtn = document.getElementById('analyze-btn');
+const stopAnalysisBtn = document.getElementById('stop-analysis-btn');
 const loadingIndicator = document.getElementById('loading-indicator');
 const loadingMessage = document.getElementById('loading-message');
 const errorMessage = document.getElementById('error-message');
@@ -44,6 +45,7 @@ const API_BASE_URL = window.location.origin;
  */
 function init() {
     analyzeBtn.addEventListener('click', handleAnalyze);
+    stopAnalysisBtn.addEventListener('click', handleStopAnalysis);
     downloadAllCsvBtn.addEventListener('click', handleDownloadAllCsv);
     addRepoBtn.addEventListener('click', addRepoInput);
     modalClose.addEventListener('click', closeModal);
@@ -225,6 +227,8 @@ function createHistoryRow(item) {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <polyline points="3,6 5,6 21,6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         <path d="M19 6V20A2 2 0 0 1 17 22H7A2 2 0 0 1 5 20V6M8 6V4A2 2 0 0 1 10 2H14A2 2 0 0 1 16 4V6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <line x1="10" y1="11" x2="10" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <line x1="14" y1="11" x2="14" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </button>
             </div>
@@ -1059,6 +1063,26 @@ function stopProgressPolling() {
         clearInterval(progressInterval);
         progressInterval = null;
     }
+}
+
+/**
+ * Handle stop analysis button click
+ */
+function handleStopAnalysis() {
+    // Stop progress polling
+    stopProgressPolling();
+
+    // Reset UI state
+    hideLoading();
+    setButtonLoading(false);
+
+    // Show cancellation message
+    showError('Analysis stopped by user');
+
+    // Reset progress
+    updateProgressCircle(0);
+
+    console.log('Analysis stopped by user');
 }
 
 // Initialize app when DOM is ready
