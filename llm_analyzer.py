@@ -193,7 +193,7 @@ Keep reasoning to 3 brief points."""
                             "content": prompt
                         }
                     ],
-                    max_tokens=300,
+                    max_completion_tokens=300,
                     temperature=0.2,
                     timeout=timeout
                 )
