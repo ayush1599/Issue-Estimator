@@ -76,6 +76,8 @@ Keep reasoning to 3 brief points."""
         Returns:
             Dictionary with complexity and estimated_cost
         """
+        print(f"DEBUG: Received response from GPT-5-nano: {response_text}")
+        
         try:
             # Try to extract JSON from the response
             # Sometimes LLMs wrap JSON in markdown code blocks
@@ -116,12 +118,23 @@ Keep reasoning to 3 brief points."""
 
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             print(f"Error parsing LLM response: {e}")
-            print(f"Raw response: {response_text[:200]}")
+            print(f"Raw response (full): {response_text}")
+            print(f"Response type: {type(response_text)}")
+            print(f"Response length: {len(response_text) if response_text else 'None'}")
+            
+            # Try to extract any JSON-like content for debugging
+            if response_text and '{' in response_text:
+                start = response_text.find('{')
+                end = response_text.rfind('}') + 1
+                if start >= 0 and end > start:
+                    json_part = response_text[start:end]
+                    print(f"Extracted JSON part: {json_part}")
+            
             # Return default values if parsing fails
             return {
                 'complexity': 'Medium',
                 'estimated_hours': 8.0,
-                'reasoning': 'Default estimate due to parsing error. Manual review recommended.'
+                'reasoning': f'Default estimate due to parsing error: {str(e)}. Raw response: {response_text[:100]}...'
             }
 
     def analyze_issue(self, title: str, body: str, labels: List[str]) -> Dict:
