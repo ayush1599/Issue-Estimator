@@ -326,8 +326,14 @@ Return ONLY valid JSON with NO markdown, NO code blocks, NO explanations outside
         last_error = None
 
         print(f"DEBUG: Starting API call - Vercel: {is_vercel}, Timeout: {timeout}")
-        print(f"DEBUG: Base URL: {self.client.base_url}")
         print(f"DEBUG: Model: {self.model}")
+
+        # For Vercel, ALWAYS use direct requests to avoid OpenAI client routing issues
+        if is_vercel:
+            return self._direct_openrouter_request(prompt, timeout, max_retries)
+        
+        # For local development, use OpenAI client
+        print(f"DEBUG: Base URL: {self.client.base_url}")
         print(f"DEBUG: Provider should be OpenRouter (base_url contains 'openrouter'): {'openrouter' in str(self.client.base_url).lower()}")
 
         for attempt in range(max_retries):
@@ -360,72 +366,7 @@ Return ONLY valid JSON with NO markdown, NO code blocks, NO explanations outside
                     api_params["temperature"] = 0.2
 
                 print(f"DEBUG: API params prepared, making request...")
-                
-                # For Vercel, try direct requests approach to avoid client issues
-                if is_vercel:
-                    try:
-                        print(f"DEBUG: Using direct requests approach for Vercel")
-                        import requests
-                        import json
-                        
-                        headers = {
-                            "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
-                            "Content-Type": "application/json",
-                            "HTTP-Referer": "https://github.com/ayush1599/Issue-Estimator",
-                            "X-Title": "Issue Estimator"
-                        }
-                        
-                        payload = {
-                            "model": self.model,
-                            "messages": api_params["messages"],
-                            "max_tokens": api_params["max_tokens"]
-                        }
-                        
-                        if "temperature" in api_params:
-                            payload["temperature"] = api_params["temperature"]
-                        
-                        print(f"DEBUG: Making direct POST to https://openrouter.ai/api/v1/chat/completions")
-                        
-                        response_raw = requests.post(
-                            "https://openrouter.ai/api/v1/chat/completions",
-                            headers=headers,
-                            json=payload,
-                            timeout=timeout
-                        )
-                        
-                        print(f"DEBUG: Direct request status: {response_raw.status_code}")
-                        
-                        if response_raw.status_code != 200:
-                            print(f"DEBUG: Direct request failed: {response_raw.text}")
-                            raise Exception(f"OpenRouter API error: {response_raw.status_code} - {response_raw.text}")
-                        
-                        response_data = response_raw.json()
-                        
-                        # Create a mock response object that matches OpenAI client format
-                        class MockMessage:
-                            def __init__(self, content):
-                                self.content = content
-                                self.reasoning = None
-                        
-                        class MockChoice:
-                            def __init__(self, message):
-                                self.message = message
-                        
-                        class MockResponse:
-                            def __init__(self, choices):
-                                self.choices = choices
-                        
-                        content = response_data["choices"][0]["message"]["content"]
-                        response = MockResponse([MockChoice(MockMessage(content))])
-                        
-                    except ImportError:
-                        print(f"DEBUG: requests not available, falling back to OpenAI client")
-                        response = self.client.chat.completions.create(**api_params)
-                    except Exception as direct_error:
-                        print(f"DEBUG: Direct requests failed: {direct_error}, falling back to OpenAI client")
-                        response = self.client.chat.completions.create(**api_params)
-                else:
-                    response = self.client.chat.completions.create(**api_params)
+                response = self.client.chat.completions.create(**api_params)
                 
                 print(f"DEBUG: Response object received successfully.")
 
@@ -469,6 +410,99 @@ Return ONLY valid JSON with NO markdown, NO code blocks, NO explanations outside
 
         # If all retries failed, raise the last error
         print(f"DEBUG - All attempts failed, raising last error: {last_error}")
+        raise last_error
+
+    def _direct_openrouter_request(self, prompt: str, timeout: float, max_retries: int) -> str:
+        """
+        Make direct HTTP request to OpenRouter API (for Vercel)
+        
+        Args:
+            prompt: Analysis prompt
+            timeout: Request timeout
+            max_retries: Maximum retry attempts
+            
+        Returns:
+            Response content string
+        """
+        import requests
+        import json
+        
+        print(f"DEBUG: Using DIRECT OpenRouter requests (bypassing OpenAI client)")
+        
+        # Build API parameters
+        max_tokens = 4000 if "gpt-5" in self.model else 300
+        
+        headers = {
+            "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/ayush1599/Issue-Estimator",
+            "X-Title": "Issue Estimator"
+        }
+        
+        payload = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a JSON-only API. Return ONLY valid JSON. No explanations, no markdown, no other text."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "max_tokens": max_tokens
+        }
+        
+        # Only add temperature for non-gpt-5-nano models
+        if "gpt-5-nano" not in self.model:
+            payload["temperature"] = 0.2
+        
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                print(f"DEBUG: Direct request attempt {attempt + 1}/{max_retries}")
+                print(f"DEBUG: POST to https://openrouter.ai/api/v1/chat/completions")
+                print(f"DEBUG: Model: {payload['model']}")
+                print(f"DEBUG: Max tokens: {payload['max_tokens']}")
+                
+                response_raw = requests.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=timeout
+                )
+                
+                print(f"DEBUG: Response status: {response_raw.status_code}")
+                
+                if response_raw.status_code != 200:
+                    error_text = response_raw.text
+                    print(f"DEBUG: API error response: {error_text}")
+                    raise Exception(f"OpenRouter API error: {response_raw.status_code} - {error_text}")
+                
+                response_data = response_raw.json()
+                print(f"DEBUG: Response JSON keys: {list(response_data.keys())}")
+                
+                if "choices" not in response_data or not response_data["choices"]:
+                    raise Exception(f"Invalid response format: {response_data}")
+                
+                content = response_data["choices"][0]["message"]["content"]
+                print(f"DEBUG: Content received, length: {len(content) if content else 0}")
+                
+                return content if content else ""
+                
+            except Exception as e:
+                last_error = e
+                error_msg = str(e)
+                print(f"DEBUG: Direct request attempt {attempt + 1} failed: {error_msg}")
+                
+                # Don't retry on Vercel to avoid timeout
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(0.5)
+        
+        print(f"DEBUG: All direct request attempts failed")
         raise last_error
 
 
