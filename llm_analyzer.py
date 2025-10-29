@@ -1,18 +1,17 @@
 """
 LLM Analyzer Module
-Handles AI-powered analysis of GitHub issues using Claude or OpenAI
+Handles AI-powered analysis of GitHub issues using OpenAI
 """
 
 import os
 import json
 import hashlib
 from typing import Dict, List
-from anthropic import Anthropic
 from openai import OpenAI
 
 
 class LLMAnalyzer:
-    """Analyzes GitHub issues using LLM to estimate complexity and cost"""
+    """Analyzes GitHub issues using OpenAI to estimate complexity and cost"""
 
     # Hours ranges for each complexity level
     HOURS_RANGES = {
@@ -25,27 +24,16 @@ class LLMAnalyzer:
     DEFAULT_HOURLY_RATE = 80  # USD per hour
 
     def __init__(self):
-        """Initialize the LLM client based on environment configuration"""
-        self.provider = os.getenv('LLM_PROVIDER', 'openai').lower()
+        """Initialize the OpenAI client"""
         self.cache = {}  # In-memory cache for API responses
 
-        if self.provider == 'anthropic':
-            api_key = os.getenv('ANTHROPIC_API_KEY')
-            if not api_key:
-                raise ValueError("ANTHROPIC_API_KEY not found in environment variables")
-            self.client = Anthropic(api_key=api_key)
-            self.model = "claude-3-5-sonnet-20241022"
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY not found in environment variables")
 
-        elif self.provider == 'openai':
-            api_key = os.getenv('OPENAI_API_KEY')
-            if not api_key:
-                raise ValueError("OPENAI_API_KEY not found in environment variables")
-            self.client = OpenAI(api_key=api_key)
-            # Using GPT-4o-mini for faster and more cost-efficient analysis
-            self.model = "gpt-4o-mini"
-
-        else:
-            raise ValueError(f"Unsupported LLM provider: {self.provider}")
+        self.client = OpenAI(api_key=api_key)
+        # Using GPT-4o-mini for faster and more cost-efficient analysis
+        self.model = "gpt-4o-mini"
 
     def _build_analysis_prompt(self, title: str, body: str, labels: List[str]) -> str:
         """
@@ -159,11 +147,7 @@ Keep reasoning to 3 brief points."""
         prompt = self._build_analysis_prompt(title, body, labels)
 
         try:
-            if self.provider == 'anthropic':
-                response = self._analyze_with_anthropic(prompt)
-            else:
-                response = self._analyze_with_openai(prompt)
-
+            response = self._analyze_with_openai(prompt)
             result = self._parse_llm_response(response)
 
             # Cache the result
@@ -178,46 +162,6 @@ Keep reasoning to 3 brief points."""
                 'estimated_hours': 8.0,
                 'reasoning': f'Default estimate due to error: {str(e)}. Manual review recommended.'
             }
-
-    def _analyze_with_anthropic(self, prompt: str) -> str:
-        """
-        Get analysis from Claude with retry logic optimized for Vercel
-
-        Args:
-            prompt: Analysis prompt
-
-        Returns:
-            Response text
-        """
-        # Detect if running on Vercel (shorter timeout, no retries)
-        is_vercel = os.getenv('VERCEL') == '1'
-        max_retries = 1 if is_vercel else 3
-        timeout = 8.0 if is_vercel else 30.0
-        last_error = None
-
-        for attempt in range(max_retries):
-            try:
-                message = self.client.messages.create(
-                    model=self.model,
-                    max_tokens=300,
-                    messages=[
-                        {"role": "user", "content": prompt}
-                    ],
-                    timeout=timeout
-                )
-                return message.content[0].text
-            except Exception as e:
-                last_error = e
-                error_msg = str(e)
-                print(f"Anthropic API attempt {attempt + 1}/{max_retries} failed: {error_msg}")
-
-                # Only retry if not on Vercel and not last attempt
-                if not is_vercel and attempt < max_retries - 1:
-                    import time
-                    time.sleep(0.5)  # Shorter retry delay
-
-        # If all retries failed, raise the last error
-        raise last_error
 
     def _analyze_with_openai(self, prompt: str) -> str:
         """
