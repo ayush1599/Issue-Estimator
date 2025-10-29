@@ -8,6 +8,7 @@ import re
 import json
 import uuid
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import StringIO, BytesIO
 from typing import List, Dict, Optional
 from flask import Flask, request, jsonify, send_file
@@ -224,27 +225,16 @@ def process_single_repo(repo_url, hourly_rate, github_client, repo_index, total_
         # Extract and clean issue data
         issues = [github_client.extract_issue_data(issue) for issue in raw_issues]
 
-        # Analyze each issue with LLM
+        # Analyze issues in parallel using ThreadPoolExecutor
         analyzed_issues = []
         total_cost = 0
+        completed_count = 0
 
-        for idx, issue in enumerate(issues, 1):
-            print(f"[Repo {repo_index}/{total_repos}] Analyzing issue {idx}/{len(issues)}: #{issue['issue_number']}")
-
-            # Update progress for this specific issue
-            base_progress = int((repo_index - 1) / total_repos * 100)
-            repo_progress = int((idx / len(issues)) * (100 / total_repos))
-            total_progress = min(base_progress + repo_progress, 99)
-
-            progress_tracking[session_id].update({
-                'progress': total_progress,
-                'message': f'Repo {repo_index}/{total_repos}: Analyzing issue {idx}/{len(issues)}: {issue["title"][:50]}...',
-                'current_repo': repo_index,
-                'current_issue': idx,
-                'total_issues_in_repo': len(issues)
-            })
-
+        def analyze_single_issue(idx, issue):
+            """Analyze a single issue and return result"""
             try:
+                print(f"[Repo {repo_index}/{total_repos}] Analyzing issue {idx}/{len(issues)}: #{issue['issue_number']}")
+
                 analysis = llm_analyzer.analyze_issue(
                     title=issue['title'],
                     body=issue['body'],
@@ -255,7 +245,7 @@ def process_single_repo(repo_url, hourly_rate, github_client, repo_index, total_
                 estimated_hours = analysis['estimated_hours']
                 estimated_cost = estimated_hours * hourly_rate
 
-                analyzed_issue = {
+                return {
                     'issue_number': issue['issue_number'],
                     'title': issue['title'],
                     'complexity': analysis['complexity'],
@@ -266,12 +256,9 @@ def process_single_repo(repo_url, hourly_rate, github_client, repo_index, total_
                     'reasoning': analysis['reasoning']
                 }
 
-                analyzed_issues.append(analyzed_issue)
-                total_cost += estimated_cost
-
             except Exception as e:
                 print(f"Error analyzing issue #{issue['issue_number']}: {str(e)}")
-                analyzed_issues.append({
+                return {
                     'issue_number': issue['issue_number'],
                     'title': issue['title'],
                     'complexity': 'Unknown',
@@ -280,7 +267,50 @@ def process_single_repo(repo_url, hourly_rate, github_client, repo_index, total_
                     'labels': ', '.join(issue['labels']),
                     'url': issue['html_url'],
                     'reasoning': 'Analysis failed. Manual review required.'
-                })
+                }
+
+        # Process issues in batches for better performance and resource management
+        BATCH_SIZE = 10  # Process 10 issues at a time
+        CONCURRENT_WORKERS = 10  # Up to 10 concurrent API calls per batch
+
+        with ThreadPoolExecutor(max_workers=CONCURRENT_WORKERS) as executor:
+            # Process issues in batches
+            for batch_start in range(0, len(issues), BATCH_SIZE):
+                batch_end = min(batch_start + BATCH_SIZE, len(issues))
+                batch = issues[batch_start:batch_end]
+
+                print(f"[Repo {repo_index}/{total_repos}] Processing batch {batch_start//BATCH_SIZE + 1}/{(len(issues) + BATCH_SIZE - 1)//BATCH_SIZE} ({len(batch)} issues)")
+
+                # Submit batch tasks
+                future_to_issue = {
+                    executor.submit(analyze_single_issue, batch_start + idx + 1, issue): (batch_start + idx + 1, issue)
+                    for idx, issue in enumerate(batch)
+                }
+
+                # Collect results for this batch as they complete
+                for future in as_completed(future_to_issue):
+                    idx, issue = future_to_issue[future]
+                    result = future.result()
+                    analyzed_issues.append(result)
+                    total_cost += result.get('estimated_cost', 0)
+
+                    completed_count += 1
+
+                    # Update progress
+                    base_progress = int((repo_index - 1) / total_repos * 100)
+                    repo_progress = int((completed_count / len(issues)) * (100 / total_repos))
+                    total_progress = min(base_progress + repo_progress, 99)
+
+                    progress_tracking[session_id].update({
+                        'progress': total_progress,
+                        'message': f'Repo {repo_index}/{total_repos}: Analyzed {completed_count}/{len(issues)} issues (Batch {batch_start//BATCH_SIZE + 1})',
+                        'current_repo': repo_index,
+                        'current_issue': completed_count,
+                        'total_issues_in_repo': len(issues)
+                    })
+
+        # Sort by issue number for consistent ordering
+        analyzed_issues.sort(key=lambda x: x['issue_number'])
 
         # Cache results for CSV download
         cache_key = f"{owner}_{repo}"

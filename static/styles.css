@@ -1797,3 +1797,63 @@ footer {
     background-color: var(--error-600);
     border-color: var(--error-600);
 }
+
+/* Pagination Styles */
+.pagination-container {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--platinum-200);
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+}
+
+.pagination-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    background: var(--surface);
+    border: 1px solid var(--platinum-300);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.pagination-btn:hover:not(.disabled) {
+    background: var(--alice-100);
+    border-color: var(--thistle-500);
+    color: var(--thistle-500);
+}
+
+.pagination-btn:active:not(.disabled) {
+    transform: scale(0.98);
+}
+
+.pagination-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.pagination-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.pagination-info {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    padding: 0 8px;
+    min-width: 120px;
+    text-align: center;
+}

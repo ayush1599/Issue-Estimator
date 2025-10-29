@@ -10,6 +10,8 @@ let currentSessionId = null;
 let repoInputCount = 1;
 let activeTabIndex = 0;
 let allRepoIssues = []; // Store all issues for modal access
+let currentPage = {}; // Track current page for each repo tab
+const ITEMS_PER_PAGE = 10;
 
 // DOM Elements
 const repoInputsContainer = document.getElementById('repo-inputs-container');
@@ -592,6 +594,11 @@ function createTabContent(repoResult, index) {
         // Store issues in global array for modal access
         allRepoIssues[index] = repoResult.issues;
 
+        // Initialize current page for this repo
+        if (!currentPage[index]) {
+            currentPage[index] = 1;
+        }
+
         // Create combined card with summary and issue details
         const combinedHTML = `
             <div class="card">
@@ -622,7 +629,7 @@ function createTabContent(repoResult, index) {
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Issue Details Section -->
                     <div class="details-section">
                         <h3 class="section-title">Issue Details</h3>
@@ -639,9 +646,14 @@ function createTabContent(repoResult, index) {
                                     <div class="table-head">Details</div>
                                 </div>
                             </div>
-                            <div class="table-body">
-                                ${repoResult.issues.map((issue, issueIndex) => createIssueTableRowHTML(issue, index, issueIndex)).join('')}
+                            <div class="table-body" id="table-body-${index}">
+                                <!-- Issues will be rendered here by renderIssuesPage -->
                             </div>
+                        </div>
+
+                        <!-- Pagination Controls -->
+                        <div id="pagination-${index}" class="pagination-container">
+                            <!-- Pagination will be rendered here -->
                         </div>
                     </div>
                 </div>
@@ -662,6 +674,11 @@ function createTabContent(repoResult, index) {
     }
 
     tabContentContainer.appendChild(tabContent);
+
+    // Render first page of issues AFTER adding to DOM
+    if (repoResult.status === 'success' && repoResult.issue_count > 0) {
+        renderIssuesPage(index);
+    }
 }
 
 /**
@@ -746,6 +763,115 @@ function switchTab(index) {
         content.style.display = i === index ? 'block' : 'none';
     });
 }
+
+/**
+ * Render issues for a specific page
+ */
+function renderIssuesPage(repoIndex, page = null) {
+    if (page !== null) {
+        currentPage[repoIndex] = page;
+    }
+
+    const issues = allRepoIssues[repoIndex];
+    if (!issues || issues.length === 0) return;
+
+    const currentPageNum = currentPage[repoIndex] || 1;
+    const startIndex = (currentPageNum - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const pageIssues = issues.slice(startIndex, endIndex);
+
+    // Render issues
+    const tableBody = document.getElementById(`table-body-${repoIndex}`);
+    if (tableBody) {
+        tableBody.innerHTML = pageIssues.map((issue, idx) =>
+            createIssueTableRowHTML(issue, repoIndex, startIndex + idx)
+        ).join('');
+    }
+
+    // Render pagination controls
+    renderPaginationControls(repoIndex, issues.length);
+}
+
+/**
+ * Render pagination controls
+ */
+function renderPaginationControls(repoIndex, totalIssues) {
+    const totalPages = Math.ceil(totalIssues / ITEMS_PER_PAGE);
+    const currentPageNum = currentPage[repoIndex] || 1;
+
+    if (totalPages <= 1) {
+        // No pagination needed
+        const paginationContainer = document.getElementById(`pagination-${repoIndex}`);
+        if (paginationContainer) {
+            paginationContainer.innerHTML = '';
+        }
+        return;
+    }
+
+    const paginationContainer = document.getElementById(`pagination-${repoIndex}`);
+    if (!paginationContainer) return;
+
+    let paginationHTML = '<div class="pagination">';
+
+    // Previous button
+    paginationHTML += `
+        <button
+            class="pagination-btn ${currentPageNum === 1 ? 'disabled' : ''}"
+            onclick="changePage(${repoIndex}, ${currentPageNum - 1})"
+            ${currentPageNum === 1 ? 'disabled' : ''}
+        >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <polyline points="15 18 9 12 15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Previous
+        </button>
+    `;
+
+    // Page info
+    paginationHTML += `
+        <div class="pagination-info">
+            Page ${currentPageNum} of ${totalPages}
+        </div>
+    `;
+
+    // Next button
+    paginationHTML += `
+        <button
+            class="pagination-btn ${currentPageNum === totalPages ? 'disabled' : ''}"
+            onclick="changePage(${repoIndex}, ${currentPageNum + 1})"
+            ${currentPageNum === totalPages ? 'disabled' : ''}
+        >
+            Next
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <polyline points="9 18 15 12 9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+    `;
+
+    paginationHTML += '</div>';
+
+    paginationContainer.innerHTML = paginationHTML;
+}
+
+/**
+ * Change page for a repository
+ */
+window.changePage = function(repoIndex, page) {
+    const issues = allRepoIssues[repoIndex];
+    if (!issues) return;
+
+    const totalPages = Math.ceil(issues.length / ITEMS_PER_PAGE);
+
+    if (page < 1 || page > totalPages) return;
+
+    renderIssuesPage(repoIndex, page);
+
+    // Scroll to top of table
+    const tableContainer = document.querySelector(`#table-body-${repoIndex}`);
+    if (tableContainer) {
+        tableContainer.closest('.details-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+};
 
 /**
  * Download CSV for a single repository
