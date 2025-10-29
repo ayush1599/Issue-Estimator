@@ -43,18 +43,46 @@ class LLMAnalyzer:
             if is_vercel:
                 # Vercel-specific configuration with custom timeout
                 import httpx
+                
+                # Debug DNS resolution
+                try:
+                    import socket
+                    openrouter_ip = socket.gethostbyname('openrouter.ai')
+                    print(f"DEBUG: openrouter.ai resolves to: {openrouter_ip}")
+                except Exception as dns_error:
+                    print(f"DEBUG: DNS resolution failed: {dns_error}")
+                
+                # Try with explicit DNS and no proxy
                 http_client = httpx.Client(
                     timeout=httpx.Timeout(timeout=30.0, connect=10.0, read=30.0),
                     limits=httpx.Limits(max_connections=10, max_keepalive_connections=2),
-                    verify=True  # Ensure SSL verification
+                    verify=True,  # Ensure SSL verification
+                    proxies=None,  # Explicitly disable proxies
+                    follow_redirects=True
                 )
+                
+                base_url = "https://openrouter.ai/api/v1"
+                print(f"DEBUG: Setting base_url to: {base_url}")
                 
                 self.client = OpenAI(
                     api_key=api_key,
-                    base_url="https://openrouter.ai/api/v1",
+                    base_url=base_url,
                     http_client=http_client,
                     max_retries=0  # Disable automatic retries, we handle them manually
                 )
+                
+                # Verify the client was configured correctly
+                print(f"DEBUG: Client base_url after init: {self.client.base_url}")
+                print(f"DEBUG: Client API key present: {bool(self.client.api_key)}")
+                print(f"DEBUG: Client API key starts with: {self.client.api_key[:10] if self.client.api_key else 'None'}...")
+                
+                # Test basic connectivity to OpenRouter
+                try:
+                    import requests
+                    test_response = requests.get("https://openrouter.ai/api/v1/models", timeout=10)
+                    print(f"DEBUG: OpenRouter connectivity test - Status: {test_response.status_code}")
+                except Exception as conn_error:
+                    print(f"DEBUG: OpenRouter connectivity test failed: {conn_error}")
             else:
                 # Standard configuration for local development
                 self.client = OpenAI(
@@ -316,7 +344,65 @@ Return ONLY valid JSON with NO markdown, NO code blocks, NO explanations outside
                     api_params["temperature"] = 0.2
 
                 print(f"DEBUG: API params prepared, making request...")
-                response = self.client.chat.completions.create(**api_params)
+                
+                # For Vercel, try direct requests approach to avoid client issues
+                if is_vercel:
+                    print(f"DEBUG: Using direct requests approach for Vercel")
+                    import requests
+                    import json
+                    
+                    headers = {
+                        "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://github.com/ayush1599/Issue-Estimator",
+                        "X-Title": "Issue Estimator"
+                    }
+                    
+                    payload = {
+                        "model": self.model,
+                        "messages": api_params["messages"],
+                        "max_tokens": api_params["max_tokens"]
+                    }
+                    
+                    if "temperature" in api_params:
+                        payload["temperature"] = api_params["temperature"]
+                    
+                    print(f"DEBUG: Making direct POST to https://openrouter.ai/api/v1/chat/completions")
+                    
+                    response_raw = requests.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers=headers,
+                        json=payload,
+                        timeout=timeout
+                    )
+                    
+                    print(f"DEBUG: Direct request status: {response_raw.status_code}")
+                    
+                    if response_raw.status_code != 200:
+                        print(f"DEBUG: Direct request failed: {response_raw.text}")
+                        raise Exception(f"OpenRouter API error: {response_raw.status_code} - {response_raw.text}")
+                    
+                    response_data = response_raw.json()
+                    
+                    # Create a mock response object that matches OpenAI client format
+                    class MockMessage:
+                        def __init__(self, content):
+                            self.content = content
+                            self.reasoning = None
+                    
+                    class MockChoice:
+                        def __init__(self, message):
+                            self.message = message
+                    
+                    class MockResponse:
+                        def __init__(self, choices):
+                            self.choices = choices
+                    
+                    content = response_data["choices"][0]["message"]["content"]
+                    response = MockResponse([MockChoice(MockMessage(content))])
+                    
+                else:
+                    response = self.client.chat.completions.create(**api_params)
                 
                 print(f"DEBUG: Response object received successfully.")
 
