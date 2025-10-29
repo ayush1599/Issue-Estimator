@@ -32,8 +32,8 @@ class LLMAnalyzer:
             raise ValueError("OPENAI_API_KEY not found in environment variables")
 
         self.client = OpenAI(api_key=api_key)
-        # Using GPT-5-Nano for faster, cheaper analysis
-        self.model = "gpt-5-nano"
+        # Using GPT-4o-mini for reliable and cost-efficient analysis
+        self.model = "gpt-4o-mini"
 
     def _build_analysis_prompt(self, title: str, body: str, labels: List[str]) -> str:
         """
@@ -211,8 +211,6 @@ Keep reasoning to 3 brief points."""
                             "content": prompt
                         }
                     ],
-                    reasoning={"effort": "low"},        # GPT-5 parameter
-                    text={"verbosity": "medium"},       # GPT-5 parameter
                     max_tokens=800,
                     temperature=0.2,
                     timeout=timeout
