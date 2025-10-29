@@ -33,7 +33,7 @@ class LLMAnalyzer:
         print(f"DEBUG: Using provider: {provider}")
 
         if provider == 'openrouter':
-            api_key = os.getenv('OPENROUTER_API_KEY')
+            api_key = os.getenv('OPENROUTER_API_KEY', '').strip()
             if not api_key:
                 raise ValueError("OPENROUTER_API_KEY not found in environment variables")
 
@@ -432,12 +432,18 @@ Return ONLY valid JSON with NO markdown, NO code blocks, NO explanations outside
         # Build API parameters
         max_tokens = 4000 if "gpt-5" in self.model else 300
         
+        # Get API key and strip any whitespace/newlines
+        api_key = os.getenv('OPENROUTER_API_KEY', '').strip()
+        
         headers = {
-            "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://github.com/ayush1599/Issue-Estimator",
             "X-Title": "Issue Estimator"
         }
+        
+        print(f"DEBUG: API key length: {len(api_key)}")
+        print(f"DEBUG: API key starts with: {api_key[:10] if api_key else 'EMPTY'}...")
         
         payload = {
             "model": self.model,
