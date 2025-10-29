@@ -39,9 +39,8 @@ class LLMAnalyzer:
             if not api_key:
                 raise ValueError("OPENAI_API_KEY not found in environment variables")
             self.client = OpenAI(api_key=api_key)
-            # Using the latest and most advanced OpenAI model
-            # GPT-4o is the newest model (as of 2024) - faster and smarter than GPT-4-turbo
-            self.model = "gpt-4o"  # or try "gpt-4o-mini" for faster/cheaper, or "o1-preview" for reasoning
+            # Using GPT-4o-mini for faster and more cost-efficient analysis
+            self.model = "gpt-4o-mini"
 
         else:
             raise ValueError(f"Unsupported LLM provider: {self.provider}")
@@ -60,12 +59,12 @@ class LLMAnalyzer:
         """
         labels_str = ', '.join(labels) if labels else 'None'
 
-        prompt = f"""Analyze this GitHub issue and estimate its complexity, hours needed, and development cost.
+        prompt = f"""Analyze this GitHub issue and estimate its complexity and hours needed.
 
 **Issue Title:** {title}
 
 **Description:**
-{body[:2000] if body else 'No description provided'}
+{body[:1500] if body else 'No description provided'}
 
 **Labels:** {labels_str}
 
@@ -75,34 +74,27 @@ Based on the information above, provide:
    - Medium: Feature additions, moderate refactoring, integration tasks (6-15 hours)
    - High: Complex features, architectural changes, major refactoring (15-25 hours)
 
-2. **Estimated Hours**: Provide realistic development hours:
-   - Low complexity: 1-6 hours
-   - Medium complexity: 6-15 hours
-   - High complexity: 15-25 hours
+2. **Estimated Hours**: Provide realistic development hours within the complexity range.
 
-3. **Detailed Reasoning**: Provide a well-structured analysis using HTML formatting with:
-   - Use <h3> tags for main sections
-   - Use <h4> tags for sub-sections
-   - Use <strong> tags for emphasis on important points
-   - Use <ul> and <li> tags for bullet points
-   - Use <p> tags for paragraphs
+3. **Concise Reasoning**: Provide 3-4 key bullet points using HTML formatting:
+   - Use <ul> and <li> tags for the 3-4 main points
+   - Use <strong> tags for emphasis
+   - Keep it concise and actionable
 
-   Include these sections:
-   - **Overview**: Brief summary of the task
-   - **Main Tasks Required**: Bulleted list of key tasks
-   - **Technical Challenges**: Specific technical hurdles (if any)
-   - **Components Affected**: Which parts of the codebase will change
-   - **Testing Requirements**: What needs to be tested
-   - **Assumptions**: Any assumptions made in the estimate
+   Focus on:
+   - What needs to be done (1-2 sentences)
+   - Key technical considerations
+   - Major components affected
+   - Testing or validation needed (if significant)
 
 Respond ONLY with a valid JSON object in this exact format:
 {{
     "complexity": "Low|Medium|High",
     "estimated_hours": <number>,
-    "reasoning": "<h3>Overview</h3><p>Brief summary here...</p><h3>Main Tasks Required</h3><ul><li>Task 1</li><li>Task 2</li></ul>..."
+    "reasoning": "<ul><li><strong>Task:</strong> Brief description</li><li><strong>Technical:</strong> Key considerations</li><li><strong>Components:</strong> What's affected</li><li><strong>Testing:</strong> What to test (optional)</li></ul>"
 }}
 
-Make the reasoning well-formatted HTML with proper structure, headers, and bullet points."""
+Keep reasoning to 3-4 bullet points maximum."""
 
         return prompt
 
